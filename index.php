@@ -75,7 +75,7 @@ require_once __DIR__ . '/db_related/db_connect.php';
                 I messed up the words, but I hope this effort shows you that MJ is paying attention. I'm ready to watch Naruto, One Piece, and the sunset in Cebu with you.
             </p>
             <p>
-                Just like you said bai, we will keep this site incase lang mingawon ka and if you do I converted this site into our own safe space where we can still connect with less worries of being attached. I hope you like it, I made it with you in mind. I hope you can feel that.
+                Just like you said bai, we will keep this site incase lang mingawon ka nako ayy HAHAHA and if you do I converted this site into our own safe space where we can still connect with less worries of being attached. I hope you like it, I made it with you in mind. I hope you can feel that.
             </p>
         </section>
         <div class="mt-20 text-center fade-in">
