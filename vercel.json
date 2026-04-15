@@ -6,8 +6,10 @@
     }
   },
   "routes": [
-    { "src": "/res", "dest": "/api/res.php" },
-    { "src": "/form", "dest": "/api/form.php" },
+    { "src": "/res(?:\\.php)?", "dest": "/api/res.php" },
+    { "src": "/form(?:\\.php)?", "dest": "/api/form.php" },
+    { "src": "/view\\.php", "dest": "/api/view.php" },
+    { "src": "/index\\.php", "dest": "/api/index.php" },
     { "src": "/view/(?<id>.*)", "dest": "/api/view.php?id=$id" },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/api/index.php" }
