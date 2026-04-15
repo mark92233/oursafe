@@ -41,7 +41,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
         
         if ($httpCode === 200 || $httpCode === 201) {
             $media_url = $supabaseUrl . '/storage/v1/object/public/' . $bucketName . '/' . $newFileName;
