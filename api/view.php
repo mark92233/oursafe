@@ -43,8 +43,20 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
 
     <main class="w-full max-w-2xl glass p-10 rounded-[28px] relative overflow-hidden z-10">
         <?php if ($msg && !empty($msg['tiktok_link'])): ?>
-        <!-- TikTok Background: Scoped to this 'main' element -->
+        <?php 
+            $isLocalVideo = strpos($msg['tiktok_link'], 'uploads/') === 0;
+        ?>
         <div class="absolute inset-0 -z-10 overflow-hidden rounded-[28px]">
+            <?php if ($isLocalVideo): ?>
+            <!-- Seamless Local Video Background -->
+            <video
+                id="tiktok-player"
+                src="<?= htmlspecialchars($msg['tiktok_link']) ?>"
+                class="absolute w-full h-full object-cover opacity-40 blur-sm"
+                autoplay loop muted playsinline>
+            </video>
+            <?php else: ?>
+            <!-- Fallback Iframe Player -->
             <iframe
                 id="tiktok-player"
                 src="https://www.tiktok.com/player/v1/<?= htmlspecialchars($msg['tiktok_link']) ?>?music_info=0&description=0&autoplay=1&loop=1&muted=1"
@@ -52,6 +64,7 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
                 allow="autoplay; encrypted-media"
                 frameborder="0">
             </iframe>
+            <?php endif; ?>
         </div>
         <?php endif; ?>
 
@@ -91,6 +104,7 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
 
         let hasSound = false;
         const initialSrc = player.src; // Store the initial muted URL
+        const isLocalVideo = <?= isset($isLocalVideo) && $isLocalVideo ? 'true' : 'false' ?>;
 
         // Set initial state
         muteButton.innerHTML = soundIcon;
@@ -98,21 +112,36 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
         muteButton.addEventListener('click', () => {
             hasSound = !hasSound;
 
-            if (hasSound) {
-                // STATE: Enable Audio
-                let soundUrl = initialSrc.replace('&muted=1', '').replace('muted=1', '');
-                player.src = soundUrl;
-                muteButton.innerHTML = muteIcon;
-                muteButton.setAttribute('aria-label', 'Return to silent background');
-                player.classList.remove('opacity-40', 'blur-sm');
-                player.classList.add('opacity-80');
+            if (isLocalVideo) {
+                // Local video - seamless unmute without resetting!
+                player.muted = !hasSound;
+                if (hasSound) {
+                    muteButton.innerHTML = muteIcon;
+                    muteButton.setAttribute('aria-label', 'Mute audio');
+                    player.classList.remove('opacity-40', 'blur-sm');
+                    player.classList.add('opacity-80');
+                } else {
+                    muteButton.innerHTML = soundIcon;
+                    muteButton.setAttribute('aria-label', 'Enable audio');
+                    player.classList.add('opacity-40', 'blur-sm');
+                    player.classList.remove('opacity-80');
+                }
             } else {
-                // STATE: Return to silent background
-                player.src = initialSrc;
-                player.classList.add('opacity-40', 'blur-sm');
-                player.classList.remove('opacity-80');
-                muteButton.innerHTML = soundIcon;
-                muteButton.setAttribute('aria-label', 'Enable audio');
+                // Fallback for older iframe links
+                if (hasSound) {
+                    let soundUrl = initialSrc.replace('&muted=1', '').replace('muted=1', '');
+                    player.src = soundUrl;
+                    muteButton.innerHTML = muteIcon;
+                    muteButton.setAttribute('aria-label', 'Return to silent background');
+                    player.classList.remove('opacity-40', 'blur-sm');
+                    player.classList.add('opacity-80');
+                } else {
+                    player.src = initialSrc;
+                    player.classList.add('opacity-40', 'blur-sm');
+                    player.classList.remove('opacity-80');
+                    muteButton.innerHTML = soundIcon;
+                    muteButton.setAttribute('aria-label', 'Enable audio');
+                }
             }
         });
     </script>

@@ -12,23 +12,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Extract TikTok video ID from URL
     if (!empty($tiktok_url)) {
-        if (preg_match('/\/video\/(\d+)/', $tiktok_url, $matches)) {
-            $tiktok_id = $matches[1];
-        } else if (is_numeric($tiktok_url)) { // Allow just pasting the ID
-            $tiktok_id = $tiktok_url;
+        // Third-Party API via TikWM to download the video automatically
+        $apiUrl = 'https://www.tikwm.com/api/?url=' . urlencode($tiktok_url);
+        
+        $ch = curl_init($apiUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        $apiResponse = curl_exec($ch);
+        curl_close($ch);
+
+        $downloadSuccess = false;
+        
+        if ($apiResponse) {
+            $jsonData = json_decode($apiResponse, true);
+            if (isset($jsonData['code']) && $jsonData['code'] === 0 && !empty($jsonData['data']['play'])) {
+                $chVideo = curl_init($jsonData['data']['play']);
+                curl_setopt($chVideo, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($chVideo, CURLOPT_FOLLOWLOCATION, true);
+                curl_setopt($chVideo, CURLOPT_SSL_VERIFYPEER, false);
+                $videoData = curl_exec($chVideo);
+                $httpCode = curl_getinfo($chVideo, CURLINFO_HTTP_CODE);
+                curl_close($chVideo);
+
+                if ($videoData && $httpCode === 200) {
+                    $uploadDir = __DIR__ . '/uploads';
+                    if (!is_dir($uploadDir)) {
+                        mkdir($uploadDir, 0777, true);
+                    }
+                    $fileName = 'tiktok_' . time() . '_' . uniqid() . '.mp4';
+                    if (file_put_contents($uploadDir . '/' . $fileName, $videoData)) {
+                        $tiktok_id = 'uploads/' . $fileName;
+                        $downloadSuccess = true;
+                    }
+                }
+            }
+        }
+
+        if (!$downloadSuccess) {
+            // Fallback: save the ID or URL if download fails
+            if (preg_match('/(\d{17,21})/', $tiktok_url, $matches)) {
+                $tiktok_id = $matches[1];
+            } else {
+                $tiktok_id = trim($tiktok_url);
+            }
         }
     }
 
     if (!empty($title) && !empty($message)) {
         try {
-            // Automatically add the writer column to the existing table if it's missing
-            try {
-                $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS writer VARCHAR(50) NOT NULL DEFAULT 'Kaye'");
-                $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS view_count INT NOT NULL DEFAULT 0");
-                $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS tiktok_link VARCHAR(255) NULL");
-            } catch (PDOException $e) {
-                // Ignore if the table just doesn't exist yet, the query below handles creation
-            }
+            try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS writer VARCHAR(50) NOT NULL DEFAULT 'Kaye'"); } catch (PDOException $e) {}
+            try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS view_count INT NOT NULL DEFAULT 0"); } catch (PDOException $e) {}
+            try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS tiktok_link VARCHAR(255) NULL"); } catch (PDOException $e) {}
 
             // Auto-create the table if it doesn't exist yet
             $pdo->exec("CREATE TABLE IF NOT EXISTS messages (
