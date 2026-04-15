@@ -26,13 +26,17 @@ require_once __DIR__ . '/db_related/db_connect.php';
 
     <main class="max-w-xl mx-auto px-8 py-32 relative">
         
-        <header class="mb-32 fade-in">
+        <header class="mb-16 fade-in">
             <h1 class="text-6xl text-white mt-4 font-light italic tracking-tighter">Kaye.</h1>
             <p class="mono text-[9px] mt-6 opacity-40 uppercase tracking-[0.3em] leading-loose text-indigo-300">
                 Subject: The All-or-Nothing Risk <br>
                 Location Context: Zamboanga → Cebu
             </p>
         </header>
+
+        <div class="mb-24 text-center fade-in">
+            <a href="res.php" class="inline-block glass hover:bg-white/10 text-white py-4 px-10 rounded-xl mono text-sm uppercase tracking-widest transition-all cursor-pointer">How was your day? &rarr;</a>
+        </div>
 
         <section class="space-y-16 text-xl md:text-2xl leading-relaxed serif fade-in">
             <p>
@@ -78,9 +82,6 @@ require_once __DIR__ . '/db_related/db_connect.php';
                 Just like you said bai, we will keep this site incase lang mingawon ka nako ayy HAHAHA and if you do I converted this site into our own safe space where we can still connect with less worries of being attached. I hope you like it, I made it with you in mind. I hope you can feel that.
             </p>
         </section>
-        <div class="mt-20 text-center fade-in">
-            <a href="res.php" class="inline-block glass hover:bg-white/10 text-white py-4 px-10 rounded-xl mono text-sm uppercase tracking-widest transition-all cursor-pointer">How was your day? &rarr;</a>
-        </div>
     </main>
 
     <script>
