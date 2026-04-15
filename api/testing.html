@@ -1,36 +1,9 @@
-<?php
-require_once __DIR__ . '/db_related/db_connect.php';
-
-$msg = null;
-$error = null;
-
-if (isset($_GET['id']) && is_numeric($_GET['id'])) {
-    try {
-        // Increment view count
-        $updateStmt = $pdo->prepare("UPDATE messages SET view_count = view_count + 1 WHERE id = :id");
-        $updateStmt->execute(['id' => $_GET['id']]);
-
-        // Fetch the specific message securely using a prepared statement
-        $stmt = $pdo->prepare("SELECT title, message, writer, created_at, view_count, tiktok_link FROM messages WHERE id = :id");
-        $stmt->execute(['id' => $_GET['id']]);
-        $msg = $stmt->fetch();
-        
-        if (!$msg) {
-            $error = "Note not found in the archive.";
-        }
-    } catch (PDOException $e) {
-        $error = "Database error: " . htmlspecialchars($e->getMessage());
-    }
-} else {
-    $error = "Invalid note ID specified.";
-}
-?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>View Note - Archive for Kaye</title>
+    <title>View Note (Testing) - Archive for Kaye</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
     <style>
@@ -42,46 +15,37 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
 <body class="selection:bg-indigo-500/40 min-h-screen flex items-center justify-center p-6">
 
     <main class="w-full max-w-2xl glass p-10 rounded-[28px] relative overflow-hidden z-10">
-        <?php if ($msg && !empty($msg['tiktok_link'])): ?>
+        
         <!-- TikTok Background: Scoped to this 'main' element -->
         <div class="absolute inset-0 -z-10 overflow-hidden rounded-[28px]">
             <iframe
                 id="tiktok-player"
-                src="https://www.tiktok.com/player/v1/<?= htmlspecialchars($msg['tiktok_link']) ?>?music_info=0&description=0&autoplay=1&loop=1&muted=1"
+                src="https://www.tiktok.com/player/v1/7535833081526209810?music_info=0&description=0&autoplay=1&loop=1&muted=1"
                 class="absolute w-full h-full scale-[3] opacity-40 blur-sm pointer-events-none"
                 allow="autoplay; encrypted-media"
                 frameborder="0">
             </iframe>
         </div>
-        <?php endif; ?>
 
-        <?php if ($error): ?>
-            <div class='text-red-400 mb-6 p-4 glass rounded-xl border-red-500/30 font-sans text-sm'><?= htmlspecialchars($error) ?></div>
+        <div class="mb-8">
+            <span class="mono text-[10px] uppercase tracking-[0.2em] text-indigo-400 font-bold">
+                Written by MJ • April 15, 2026, 9:30 am • 123 views
+            </span>
+            <h2 class="text-4xl text-white mt-2 font-light italic tracking-tighter">A Mock Title for Testing</h2>
+        </div>
+
+        <div class="font-sans text-lg text-slate-300 leading-relaxed whitespace-pre-wrap mb-10">This is a mock message body. It's here to test the layout and styling of the view page without needing a database connection. You can see how the text wraps and how the leading (line-height) looks with a paragraph of content.</div>
+
+        <div class="flex justify-between items-center">
             <a href="res.php" class="inline-block glass hover:bg-white/5 text-white py-3 px-6 rounded-xl mono text-xs uppercase tracking-widest transition-all">← Back to Archive</a>
-        <?php elseif ($msg): ?>
-            <div class="mb-8">
-                <span class="mono text-[10px] uppercase tracking-[0.2em] text-indigo-400 font-bold">
-                    Written by <?= htmlspecialchars($msg['writer'] ?? 'MJ') ?> • <?= htmlspecialchars(date('F j, Y, g:i a', strtotime($msg['created_at']))) ?> • <?= htmlspecialchars($msg['view_count'] ?? 0) ?> views
-                </span>
-                <h2 class="text-4xl text-white mt-2 font-light italic tracking-tighter"><?= htmlspecialchars($msg['title']) ?></h2>
-            </div>
             
-            <div class="font-sans text-lg text-slate-300 leading-relaxed whitespace-pre-wrap mb-10"><?= htmlspecialchars($msg['message']) ?></div>
-            
-            <div class="flex justify-between items-center">
-                <a href="res.php" class="inline-block glass hover:bg-white/5 text-white py-3 px-6 rounded-xl mono text-xs uppercase tracking-widest transition-all">← Back to Archive</a>
-                
-                <?php if (!empty($msg['tiktok_link'])): ?>
-                <!-- Mute/Unmute Button -->
-                <button id="mute-button" type="button" class="w-10 h-10 flex items-center justify-center rounded-full glass hover:bg-white/10 transition-colors" aria-label="Enable audio">
-                    <!-- Icon will be inserted by JS -->
-                </button>
-                <?php endif; ?>
-            </div>
-        <?php endif; ?>
+            <!-- Mute/Unmute Button -->
+            <button id="mute-button" type="button" class="w-10 h-10 flex items-center justify-center rounded-full glass hover:bg-white/10 transition-colors" aria-label="Unmute video">
+                <!-- Icon will be inserted by JS -->
+            </button>
+        </div>
     </main>
 
-    <?php if ($msg && !empty($msg['tiktok_link'])): ?>
     <script>
         const player = document.getElementById('tiktok-player');
         const muteButton = document.getElementById('mute-button');
@@ -94,28 +58,33 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
 
         // Set initial state
         muteButton.innerHTML = soundIcon;
+        muteButton.setAttribute('aria-label', 'Enable audio');
 
         muteButton.addEventListener('click', () => {
             hasSound = !hasSound;
 
             if (hasSound) {
                 // STATE: Enable Audio
+                // TikTok ignores 'muted=0'. We MUST completely remove the muted parameter.
                 let soundUrl = initialSrc.replace('&muted=1', '').replace('muted=1', '');
                 player.src = soundUrl;
+                // Update button to show it's now a "return to background" button
                 muteButton.innerHTML = muteIcon;
                 muteButton.setAttribute('aria-label', 'Return to silent background');
-                player.classList.remove('opacity-40', 'blur-sm');
-                player.classList.add('opacity-80');
+
             } else {
                 // STATE: Return to silent background
                 player.src = initialSrc;
+
+                // Re-apply the background styles
                 player.classList.add('opacity-40', 'blur-sm');
                 player.classList.remove('opacity-80');
+
+                // Update button to show it's an "enable audio" button again
                 muteButton.innerHTML = soundIcon;
                 muteButton.setAttribute('aria-label', 'Enable audio');
             }
         });
     </script>
-    <?php endif; ?>
 </body>
 </html>
