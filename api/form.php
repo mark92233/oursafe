@@ -7,57 +7,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $title = $_POST['title'] ?? '';
     $message = $_POST['message'] ?? '';
     $writer = $_POST['writer'] ?? 'Kaye';
-    $tiktok_url = $_POST['tiktok_link'] ?? '';
-    $tiktok_id = null;
 
-    // Extract TikTok video ID from URL
-    if (!empty($tiktok_url)) {
-        // Third-Party API via TikWM to download the video automatically
-        $apiUrl = 'https://www.tikwm.com/api/?url=' . urlencode($tiktok_url);
+    // SUPABASE STORAGE CONFIGURATION
+    $supabaseUrl = 'https://jvqeqliakfulibnszgdj.supabase.co'; // Your project URL derived from db_connect
+    $supabaseKey = 'YOUR_SUPABASE_SERVICE_ROLE_KEY'; // REQUIRED: Replace with your Service Role Key
+    $bucketName = 'videos'; // The public bucket you created
+
+    $media_url = null;
+    $media_type = null;
+
+    // Handle file upload to Supabase Storage
+    if (isset($_FILES['media_file']) && $_FILES['media_file']['error'] === UPLOAD_ERR_OK) {
+        $fileTmpPath = $_FILES['media_file']['tmp_name'];
+        $fileName = $_FILES['media_file']['name'];
+        $fileType = $_FILES['media_file']['type'];
         
-        $ch = curl_init($apiUrl);
+        $extension = pathinfo($fileName, PATHINFO_EXTENSION);
+        $newFileName = uniqid() . '.' . $extension;
+
+        $ch = curl_init();
+        $uploadUrl = $supabaseUrl . '/storage/v1/object/' . $bucketName . '/' . $newFileName;
+        $fileData = file_get_contents($fileTmpPath);
+        
+        curl_setopt($ch, CURLOPT_URL, $uploadUrl);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-        $apiResponse = curl_exec($ch);
-
-        $downloadSuccess = false;
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $fileData);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $supabaseKey,
+            'apikey: ' . $supabaseKey,
+            'Content-Type: ' . $fileType
+        ]);
         
-        if ($apiResponse) {
-            $jsonData = json_decode($apiResponse, true);
-            if (isset($jsonData['code']) && $jsonData['code'] === 0 && !empty($jsonData['data']['play'])) {
-                $chVideo = curl_init($jsonData['data']['play']);
-                curl_setopt($chVideo, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($chVideo, CURLOPT_FOLLOWLOCATION, true);
-                curl_setopt($chVideo, CURLOPT_SSL_VERIFYPEER, false);
-                $videoData = curl_exec($chVideo);
-                $httpCode = curl_getinfo($chVideo, CURLINFO_HTTP_CODE);
-
-                if ($videoData && $httpCode === 200) {
-                    $uploadDir = __DIR__ . '/uploads';
-                    
-                    // Check if directory is writable to avoid read-only filesystem errors
-                    if (is_writable(__DIR__)) {
-                        if (!is_dir($uploadDir)) {
-                            mkdir($uploadDir, 0777, true);
-                        }
-                        $fileName = 'tiktok_' . time() . '_' . uniqid() . '.mp4';
-                        if (file_put_contents($uploadDir . '/' . $fileName, $videoData)) {
-                            $tiktok_id = 'uploads/' . $fileName;
-                            $downloadSuccess = true;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (!$downloadSuccess) {
-            // Fallback: save the ID or URL if download fails
-            if (preg_match('/(\d{17,21})/', $tiktok_url, $matches)) {
-                $tiktok_id = $matches[1];
-            } else {
-                $tiktok_id = trim($tiktok_url);
-            }
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpCode === 200 || $httpCode === 201) {
+            $media_url = $supabaseUrl . '/storage/v1/object/public/' . $bucketName . '/' . $newFileName;
+            $media_type = strpos($fileType, 'video') !== false ? 'video' : 'image';
+        } else {
+            $feedback = "<div class='text-red-400 mb-6 p-4 glass rounded-xl border-red-500/30 font-sans text-sm'>Failed to upload media to Supabase. Ensure your API key is set and the bucket exists.</div>";
         }
     }
 
@@ -65,7 +55,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS writer VARCHAR(50) NOT NULL DEFAULT 'Kaye'"); } catch (PDOException $e) {}
             try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS view_count INT NOT NULL DEFAULT 0"); } catch (PDOException $e) {}
-            try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS tiktok_link VARCHAR(255) NULL"); } catch (PDOException $e) {}
+            try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_url VARCHAR(255) NULL"); } catch (PDOException $e) {}
+            try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_type VARCHAR(50) NULL"); } catch (PDOException $e) {}
 
             // Auto-create the table if it doesn't exist yet
             $pdo->exec("CREATE TABLE IF NOT EXISTS messages (
@@ -75,16 +66,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 message TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 view_count INT NOT NULL DEFAULT 0,
-                tiktok_link VARCHAR(255) NULL
+                media_url VARCHAR(255) NULL,
+                media_type VARCHAR(50) NULL
             )");
 
             // Insert the form data into the database securely
-            $stmt = $pdo->prepare("INSERT INTO messages (writer, title, message, tiktok_link) VALUES (:writer, :title, :message, :tiktok_link)");
+            $stmt = $pdo->prepare("INSERT INTO messages (writer, title, message, media_url, media_type) VALUES (:writer, :title, :message, :media_url, :media_type)");
             $stmt->execute([
                 'writer' => $writer,
                 'title' => $title,
                 'message' => $message,
-                'tiktok_link' => $tiktok_id
+                'media_url' => $media_url,
+                'media_type' => $media_type
             ]);
             
             header("Location: res.php");
@@ -120,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <?= $feedback ?>
         
-        <form action="" method="POST" class="space-y-6 font-sans">
+        <form action="" method="POST" enctype="multipart/form-data" class="space-y-6 font-sans">
             <div>
                 <label for="writer" class="block mono text-[10px] uppercase tracking-[0.2em] text-indigo-400 mb-2 font-bold">Writer</label>
                 <select id="writer" name="writer" required class="w-full bg-black/40 border border-white/10 rounded-xl p-3.5 text-white focus:outline-none focus:border-indigo-500 transition-colors appearance-none cursor-pointer">
@@ -137,8 +130,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <textarea id="message" name="message" rows="6" placeholder="Tell the archive about it. Highs, lows, or just thoughts you want to park here. No pings, no pressure." required class="w-full bg-black/40 border border-white/10 rounded-xl p-3.5 text-white focus:outline-none focus:border-indigo-500 transition-colors resize-none placeholder:text-white/30"></textarea>
             </div>
             <div>
-                <label for="tiktok_link" class="block mono text-[10px] uppercase tracking-[0.2em] text-indigo-400 mb-2 font-bold">TikTok Background (Optional)</label>
-                <input type="text" id="tiktok_link" name="tiktok_link" placeholder="Paste a TikTok video URL or ID..." class="w-full bg-black/40 border border-white/10 rounded-xl p-3.5 text-white focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-white/30">
+                <label for="media_file" class="block mono text-[10px] uppercase tracking-[0.2em] text-indigo-400 mb-2 font-bold">Background Media (Video/Image)</label>
+                <input type="file" id="media_file" name="media_file" accept="video/*,image/*" class="w-full bg-black/40 border border-white/10 rounded-xl p-3.5 text-white focus:outline-none focus:border-indigo-500 transition-colors file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-indigo-500/20 file:text-indigo-400 hover:file:bg-indigo-500/30">
             </div>
             <button type="submit" class="w-full glass hover:bg-white/5 text-white py-4 px-6 rounded-xl mono text-xs uppercase tracking-widest transition-all cursor-pointer mt-4">Submit Entry</button>
         </form>

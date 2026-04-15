@@ -11,7 +11,7 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
         $updateStmt->execute(['id' => $_GET['id']]);
 
         // Fetch the specific message securely using a prepared statement
-        $stmt = $pdo->prepare("SELECT title, message, writer, created_at, view_count, tiktok_link FROM messages WHERE id = :id");
+        $stmt = $pdo->prepare("SELECT title, message, writer, created_at, view_count, media_url, media_type FROM messages WHERE id = :id");
         $stmt->execute(['id' => $_GET['id']]);
         $msg = $stmt->fetch();
         
@@ -42,28 +42,13 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
 <body class="selection:bg-indigo-500/40 min-h-screen flex items-center justify-center p-6">
 
     <main class="w-full max-w-2xl glass p-10 rounded-[28px] relative overflow-hidden z-10">
-        <?php if ($msg && !empty($msg['tiktok_link'])): ?>
-        <?php 
-            $isLocalVideo = strpos($msg['tiktok_link'], 'uploads/') === 0;
-        ?>
+        
+        <?php if (!empty($msg['media_url'])): ?>
         <div class="absolute inset-0 -z-10 overflow-hidden rounded-[28px]">
-            <?php if ($isLocalVideo): ?>
-            <!-- Seamless Local Video Background -->
-            <video
-                id="tiktok-player"
-                src="<?= htmlspecialchars($msg['tiktok_link']) ?>"
-                class="absolute w-full h-full object-cover opacity-40 blur-sm"
-                autoplay loop muted playsinline>
-            </video>
+            <?php if ($msg['media_type'] === 'video'): ?>
+                <video id="bg-media" src="<?= htmlspecialchars($msg['media_url']) ?>" class="absolute w-full h-full object-cover opacity-40 blur-sm transition-all duration-500" autoplay loop muted playsinline></video>
             <?php else: ?>
-            <!-- Fallback Iframe Player -->
-            <iframe
-                id="tiktok-player"
-                src="https://www.tiktok.com/player/v1/<?= htmlspecialchars($msg['tiktok_link']) ?>?music_info=0&description=0&autoplay=1&loop=1&muted=1"
-                class="absolute w-full h-full scale-[3] opacity-40 blur-sm pointer-events-none"
-                allow="autoplay; encrypted-media"
-                frameborder="0">
-            </iframe>
+                <img src="<?= htmlspecialchars($msg['media_url']) ?>" class="absolute w-full h-full object-cover opacity-40 blur-sm" alt="Background Media">
             <?php endif; ?>
         </div>
         <?php endif; ?>
@@ -84,66 +69,52 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
             <div class="flex justify-between items-center">
                 <a href="res.php" class="inline-block glass hover:bg-white/5 text-white py-3 px-6 rounded-xl mono text-xs uppercase tracking-widest transition-all">← Back to Archive</a>
                 
-                <?php if (!empty($msg['tiktok_link'])): ?>
-                <!-- Mute/Unmute Button -->
-                <button id="mute-button" type="button" class="w-10 h-10 flex items-center justify-center rounded-full glass hover:bg-white/10 transition-colors" aria-label="Enable audio">
-                    <!-- Icon will be inserted by JS -->
-                </button>
+                <?php if (!empty($msg['media_url']) && $msg['media_type'] === 'video'): ?>
+                <!-- Play/Pause and Mute Controls -->
+                <div class="flex items-center gap-2">
+                    <button id="play-button" type="button" class="w-10 h-10 flex items-center justify-center rounded-full glass hover:bg-white/10 transition-colors shadow-lg" aria-label="Play/Pause">
+                    </button>
+                    <button id="mute-button" type="button" class="w-10 h-10 flex items-center justify-center rounded-full glass hover:bg-white/10 transition-colors shadow-lg" aria-label="Toggle audio">
+                    </button>
+                </div>
                 <?php endif; ?>
             </div>
         <?php endif; ?>
     </main>
 
-    <?php if ($msg && !empty($msg['tiktok_link'])): ?>
+    <?php if (!empty($msg['media_url']) && $msg['media_type'] === 'video'): ?>
     <script>
-        const player = document.getElementById('tiktok-player');
-        const muteButton = document.getElementById('mute-button');
+        const media = document.getElementById('bg-media');
+        const playBtn = document.getElementById('play-button');
+        const muteBtn = document.getElementById('mute-button');
 
-        const soundIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
-        const muteIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>`;
+        if (media && playBtn && muteBtn) {
+            const playIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>`;
+            const pauseIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>`;
+            const soundIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>`;
+            const muteIcon = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>`;
 
-        let hasSound = false;
-        const initialSrc = player.src; // Store the initial muted URL
-        const isLocalVideo = <?= isset($isLocalVideo) && $isLocalVideo ? 'true' : 'false' ?>;
+            playBtn.innerHTML = pauseIcon;
+            muteBtn.innerHTML = soundIcon;
 
-        // Set initial state
-        muteButton.innerHTML = soundIcon;
-
-        muteButton.addEventListener('click', () => {
-            hasSound = !hasSound;
-
-            if (isLocalVideo) {
-                // Local video - seamless unmute without resetting!
-                player.muted = !hasSound;
-                if (hasSound) {
-                    muteButton.innerHTML = muteIcon;
-                    muteButton.setAttribute('aria-label', 'Mute audio');
-                    player.classList.remove('opacity-40', 'blur-sm');
-                    player.classList.add('opacity-80');
+            playBtn.addEventListener('click', () => {
+                if (media.paused) {
+                    media.play();
+                    playBtn.innerHTML = pauseIcon;
                 } else {
-                    muteButton.innerHTML = soundIcon;
-                    muteButton.setAttribute('aria-label', 'Enable audio');
-                    player.classList.add('opacity-40', 'blur-sm');
-                    player.classList.remove('opacity-80');
+                    media.pause();
+                    playBtn.innerHTML = playIcon;
                 }
-            } else {
-                // Fallback for older iframe links
-                if (hasSound) {
-                    let soundUrl = initialSrc.replace('&muted=1', '').replace('muted=1', '');
-                    player.src = soundUrl;
-                    muteButton.innerHTML = muteIcon;
-                    muteButton.setAttribute('aria-label', 'Return to silent background');
-                    player.classList.remove('opacity-40', 'blur-sm');
-                    player.classList.add('opacity-80');
-                } else {
-                    player.src = initialSrc;
-                    player.classList.add('opacity-40', 'blur-sm');
-                    player.classList.remove('opacity-80');
-                    muteButton.innerHTML = soundIcon;
-                    muteButton.setAttribute('aria-label', 'Enable audio');
-                }
-            }
-        });
+            });
+
+            muteBtn.addEventListener('click', () => {
+                media.muted = !media.muted;
+                muteBtn.innerHTML = media.muted ? soundIcon : muteIcon;
+                media.classList.toggle('opacity-40');
+                media.classList.toggle('opacity-80');
+                media.classList.toggle('blur-sm');
+            });
+        }
     </script>
     <?php endif; ?>
 </body>
