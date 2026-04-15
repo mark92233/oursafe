@@ -20,7 +20,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         $apiResponse = curl_exec($ch);
-        curl_close($ch);
 
         $downloadSuccess = false;
         
@@ -33,17 +32,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 curl_setopt($chVideo, CURLOPT_SSL_VERIFYPEER, false);
                 $videoData = curl_exec($chVideo);
                 $httpCode = curl_getinfo($chVideo, CURLINFO_HTTP_CODE);
-                curl_close($chVideo);
 
                 if ($videoData && $httpCode === 200) {
                     $uploadDir = __DIR__ . '/uploads';
-                    if (!is_dir($uploadDir)) {
-                        mkdir($uploadDir, 0777, true);
-                    }
-                    $fileName = 'tiktok_' . time() . '_' . uniqid() . '.mp4';
-                    if (file_put_contents($uploadDir . '/' . $fileName, $videoData)) {
-                        $tiktok_id = 'uploads/' . $fileName;
-                        $downloadSuccess = true;
+                    
+                    // Check if directory is writable to avoid read-only filesystem errors
+                    if (is_writable(__DIR__)) {
+                        if (!is_dir($uploadDir)) {
+                            mkdir($uploadDir, 0777, true);
+                        }
+                        $fileName = 'tiktok_' . time() . '_' . uniqid() . '.mp4';
+                        if (file_put_contents($uploadDir . '/' . $fileName, $videoData)) {
+                            $tiktok_id = 'uploads/' . $fileName;
+                            $downloadSuccess = true;
+                        }
                     }
                 }
             }
