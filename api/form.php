@@ -13,6 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Automatically add the writer column to the existing table if it's missing
             try {
                 $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS writer VARCHAR(50) NOT NULL DEFAULT 'Kaye'");
+                $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS view_count INT NOT NULL DEFAULT 0");
             } catch (PDOException $e) {
                 // Ignore if the table just doesn't exist yet, the query below handles creation
             }
@@ -23,7 +24,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 writer VARCHAR(50) NOT NULL DEFAULT 'Kaye',
                 title VARCHAR(255) NOT NULL,
                 message TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                view_count INT NOT NULL DEFAULT 0
             )");
 
             // Insert the form data into the database securely

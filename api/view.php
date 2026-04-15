@@ -6,8 +6,12 @@ $error = null;
 
 if (isset($_GET['id']) && is_numeric($_GET['id'])) {
     try {
+        // Increment view count
+        $updateStmt = $pdo->prepare("UPDATE messages SET view_count = view_count + 1 WHERE id = :id");
+        $updateStmt->execute(['id' => $_GET['id']]);
+
         // Fetch the specific message securely using a prepared statement
-        $stmt = $pdo->prepare("SELECT title, message, writer, created_at FROM messages WHERE id = :id");
+        $stmt = $pdo->prepare("SELECT title, message, writer, created_at, view_count FROM messages WHERE id = :id");
         $stmt->execute(['id' => $_GET['id']]);
         $msg = $stmt->fetch();
         
@@ -43,7 +47,7 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
         <?php elseif ($msg): ?>
             <div class="mb-8">
                 <span class="mono text-[10px] uppercase tracking-[0.2em] text-indigo-400 font-bold">
-                    Written by <?= htmlspecialchars($msg['writer'] ?? 'MJ') ?> • <?= htmlspecialchars(date('F j, Y, g:i a', strtotime($msg['created_at']))) ?>
+                    Written by <?= htmlspecialchars($msg['writer'] ?? 'MJ') ?> • <?= htmlspecialchars(date('F j, Y, g:i a', strtotime($msg['created_at']))) ?> • <?= htmlspecialchars($msg['view_count'] ?? 0) ?> views
                 </span>
                 <h2 class="text-4xl text-white mt-2 font-light italic tracking-tighter"><?= htmlspecialchars($msg['title']) ?></h2>
             </div>

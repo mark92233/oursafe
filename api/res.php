@@ -42,7 +42,7 @@ try {
     $offset = ($current_page - 1) * $items_per_page;
     // Fetch messages for the current page
     if ($total_items > 0) {
-        $stmt = $pdo->prepare("SELECT id, writer, title, created_at FROM messages $where_clause ORDER BY created_at DESC LIMIT :limit OFFSET :offset");
+        $stmt = $pdo->prepare("SELECT id, writer, title, created_at, view_count FROM messages $where_clause ORDER BY created_at DESC LIMIT :limit OFFSET :offset");
         if (!empty($where_clause)) {
             $stmt->bindValue(':writer', $filter_writer);
         }
@@ -106,7 +106,7 @@ try {
                     <?php foreach ($messages as $msg): ?>
                         <div class="glass p-6 rounded-2xl flex flex-col hover:bg-white/5 transition-colors border-white/5">
                             <span class="text-xs text-indigo-400/80 mono mb-3 block uppercase tracking-widest">
-                                <?= htmlspecialchars($msg['writer'] ?? 'MJ') ?> • <?= htmlspecialchars(date('M d, Y H:i', strtotime($msg['created_at']))) ?>
+                                <?= htmlspecialchars($msg['writer'] ?? 'MJ') ?> • <?= htmlspecialchars(date('M d, Y H:i', strtotime($msg['created_at']))) ?> • <?= htmlspecialchars($msg['view_count'] ?? 0) ?> views
                             </span>
                             <h3 class="text-xl text-white font-medium mb-6 line-clamp-2 break-words">
                                 <?= htmlspecialchars($msg['title']) ?>
