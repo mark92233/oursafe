@@ -7,6 +7,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $title = $_POST['title'] ?? '';
     $message = $_POST['message'] ?? '';
     $writer = $_POST['writer'] ?? 'Kaye';
+    $tiktok_url = $_POST['tiktok_link'] ?? '';
+    $tiktok_id = null;
+
+    // Extract TikTok video ID from URL
+    if (!empty($tiktok_url)) {
+        if (preg_match('/\/video\/(\d+)/', $tiktok_url, $matches)) {
+            $tiktok_id = $matches[1];
+        } else if (is_numeric($tiktok_url)) { // Allow just pasting the ID
+            $tiktok_id = $tiktok_url;
+        }
+    }
 
     if (!empty($title) && !empty($message)) {
         try {
@@ -14,6 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS writer VARCHAR(50) NOT NULL DEFAULT 'Kaye'");
                 $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS view_count INT NOT NULL DEFAULT 0");
+                $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS tiktok_link VARCHAR(255) NULL");
             } catch (PDOException $e) {
                 // Ignore if the table just doesn't exist yet, the query below handles creation
             }
@@ -25,15 +37,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 title VARCHAR(255) NOT NULL,
                 message TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                view_count INT NOT NULL DEFAULT 0
+                view_count INT NOT NULL DEFAULT 0,
+                tiktok_link VARCHAR(255) NULL
             )");
 
             // Insert the form data into the database securely
-            $stmt = $pdo->prepare("INSERT INTO messages (writer, title, message) VALUES (:writer, :title, :message)");
+            $stmt = $pdo->prepare("INSERT INTO messages (writer, title, message, tiktok_link) VALUES (:writer, :title, :message, :tiktok_link)");
             $stmt->execute([
                 'writer' => $writer,
                 'title' => $title,
-                'message' => $message
+                'message' => $message,
+                'tiktok_link' => $tiktok_id
             ]);
             
             header("Location: res.php");
@@ -84,6 +98,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div>
                 <label for="message" class="block mono text-[10px] uppercase tracking-[0.2em] text-indigo-400 mb-2 font-bold">Message </label>
                 <textarea id="message" name="message" rows="6" placeholder="Tell the archive about it. Highs, lows, or just thoughts you want to park here. No pings, no pressure." required class="w-full bg-black/40 border border-white/10 rounded-xl p-3.5 text-white focus:outline-none focus:border-indigo-500 transition-colors resize-none placeholder:text-white/30"></textarea>
+            </div>
+            <div>
+                <label for="tiktok_link" class="block mono text-[10px] uppercase tracking-[0.2em] text-indigo-400 mb-2 font-bold">TikTok Background (Optional)</label>
+                <input type="text" id="tiktok_link" name="tiktok_link" placeholder="Paste a TikTok video URL or ID..." class="w-full bg-black/40 border border-white/10 rounded-xl p-3.5 text-white focus:outline-none focus:border-indigo-500 transition-colors placeholder:text-white/30">
             </div>
             <button type="submit" class="w-full glass hover:bg-white/5 text-white py-4 px-6 rounded-xl mono text-xs uppercase tracking-widest transition-all cursor-pointer mt-4">Submit Entry</button>
         </form>

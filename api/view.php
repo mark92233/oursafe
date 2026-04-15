@@ -11,7 +11,7 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
         $updateStmt->execute(['id' => $_GET['id']]);
 
         // Fetch the specific message securely using a prepared statement
-        $stmt = $pdo->prepare("SELECT title, message, writer, created_at, view_count FROM messages WHERE id = :id");
+        $stmt = $pdo->prepare("SELECT title, message, writer, created_at, view_count, tiktok_link FROM messages WHERE id = :id");
         $stmt->execute(['id' => $_GET['id']]);
         $msg = $stmt->fetch();
         
@@ -40,7 +40,19 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
     </style>
 </head>
 <body class="selection:bg-indigo-500/40 min-h-screen flex items-center justify-center p-6">
-    <main class="w-full max-w-2xl glass p-10 rounded-[28px] relative overflow-hidden">
+
+    <?php if ($msg && !empty($msg['tiktok_link'])): ?>
+    <div class="fixed inset-0 -z-10 overflow-hidden blur-sm">
+        <iframe
+            src="https://www.tiktok.com/embed/v2/<?= htmlspecialchars($msg['tiktok_link']) ?>?autoplay=1&loop=1&mute=1"
+            class="w-full h-full scale-[1.8] pointer-events-none opacity-40"
+            allow="autoplay; encrypted-media"
+            frameborder="0">
+        </iframe>
+    </div>
+    <?php endif; ?>
+
+    <main class="w-full max-w-2xl glass p-10 rounded-[28px] relative overflow-hidden z-10">
         <?php if ($error): ?>
             <div class='text-red-400 mb-6 p-4 glass rounded-xl border-red-500/30 font-sans text-sm'><?= htmlspecialchars($error) ?></div>
             <a href="res.php" class="inline-block glass hover:bg-white/5 text-white py-3 px-6 rounded-xl mono text-xs uppercase tracking-widest transition-all">← Back to Archive</a>
