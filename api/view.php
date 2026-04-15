@@ -45,7 +45,7 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
     <div class="fixed inset-0 -z-10 overflow-hidden blur-sm">
         <iframe
             src="https://www.tiktok.com/embed/v2/<?= htmlspecialchars($msg['tiktok_link']) ?>?autoplay=1&loop=1&mute=1"
-            class="w-full h-full scale-[1.8] pointer-events-none opacity-40"
+            class="absolute w-full h-full scale-[3] pointer-events-none opacity-40"
             allow="autoplay; encrypted-media"
             frameborder="0">
         </iframe>
