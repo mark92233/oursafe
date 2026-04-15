@@ -21,7 +21,6 @@ $where_clause = "";
 if ($filter_writer === 'MJ' || $filter_writer === 'Kaye') {
     $where_clause = "WHERE writer = :writer";
 }
-
 try {
     // Get total number of items
     $total_items_stmt = $pdo->prepare("SELECT COUNT(*) FROM messages $where_clause");
@@ -30,17 +29,13 @@ try {
     }
     $total_items_stmt->execute();
     $total_items = $total_items_stmt->fetchColumn();
-
     // Calculate total pages
     $total_pages = ceil($total_items / $items_per_page);
-
     // Get current page from URL, default to 1, and validate it
     $current_page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : 1;
     $current_page = max(1, min($current_page, $total_pages > 0 ? $total_pages : 1));
-
     // Calculate the offset
     $offset = ($current_page - 1) * $items_per_page;
-
     // Fetch messages for the current page
     if ($total_items > 0) {
         $stmt = $pdo->prepare("SELECT id, writer, title, created_at FROM messages $where_clause ORDER BY created_at DESC LIMIT :limit OFFSET :offset");
@@ -83,18 +78,15 @@ try {
                     <a href="form.php" class="block sm:inline-block w-full sm:w-auto text-center glass hover:bg-white/10 text-white py-3 px-6 rounded-xl mono text-[11px] uppercase tracking-widest transition-all">How was your day? ✎</a>
                 </div>
             </div>
-            
             <div class="mb-8 p-6 glass rounded-2xl border-white/10 text-slate-300 font-sans text-[15px] leading-relaxed">
                 I’ve made a little space for you on the site. You don’t ever have to feel pressured to use it, but if you ever have a thought you want to get out or just want to talk without the 'ping' of a notification, you can leave it there. I’ll keep an eye on it whenever I’m writing in my own journal. It’s just a place for us to be, even when we’re standing our ground.
             </div>
-
             <?php if (isset($error)): ?>
                 <div class='text-red-400 mb-6 p-4 glass rounded-xl border-red-500/30 font-sans text-sm'><?= htmlspecialchars($error) ?></div>
             <?php endif; ?>
             <?php if (isset($success_msg)): ?>
                 <div class='text-green-400 mb-6 p-4 glass rounded-xl border-green-500/30 font-sans text-sm'><?= htmlspecialchars($success_msg) ?></div>
             <?php endif; ?>
-
             <div class="mb-6 flex justify-end">
                 <form method="GET" action="" class="flex items-center space-x-3">
                     <label for="writer-filter" class="mono text-[10px] uppercase tracking-[0.2em] text-indigo-400 font-bold">Filter:</label>
@@ -105,7 +97,6 @@ try {
                     </select>
                 </form>
             </div>
-
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 font-sans">
                 <?php if (!empty($messages)): ?>
                     <?php foreach ($messages as $msg): ?>
@@ -116,7 +107,6 @@ try {
                             <h3 class="text-xl text-white font-medium mb-6 line-clamp-2 break-words">
                                 <?= htmlspecialchars($msg['title']) ?>
                             </h3>
-                            
                             <div class="mt-auto flex space-x-3 pt-4 border-t border-white/5">
                                 <a href="view.php?id=<?= $msg['id'] ?>" class="flex-1 text-center glass hover:bg-white/10 text-white py-2.5 px-4 rounded-xl mono text-[10px] uppercase tracking-widest transition-all">View</a>
                                 <button onclick="openModal(<?= $msg['id'] ?>)" class="flex-1 text-center glass hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 text-white py-2.5 px-4 rounded-xl mono text-[10px] uppercase tracking-widest transition-all cursor-pointer">Delete</button>
@@ -130,8 +120,6 @@ try {
                 <?php endif; ?>
             </div>
         </main>
-
-        <!-- PAGINATION CONTROLS -->
         <?php if ($total_pages > 1): ?>
             <?php $writer_param = !empty($filter_writer) ? '&writer=' . urlencode($filter_writer) : ''; ?>
             <div class="mt-8 flex justify-between items-center font-sans">
@@ -141,12 +129,10 @@ try {
                     <?php else: ?>
                         <span class="inline-block glass bg-white/5 text-white/30 py-2 px-5 rounded-xl mono text-xs uppercase tracking-widest cursor-not-allowed">← Previous</span>
                     <?php endif; ?>
-                </div>
-                
+                </div>      
                 <div class="text-slate-400 text-sm mono">
                     Page <?= $current_page ?> of <?= $total_pages ?>
                 </div>
-
                 <div>
                     <?php if ($current_page < $total_pages): ?>
                         <a href="?page=<?= $current_page + 1 ?><?= $writer_param ?>" class="inline-block glass hover:bg-white/10 text-white py-2 px-5 rounded-xl mono text-xs uppercase tracking-widest transition-all">Next →</a>
@@ -157,8 +143,6 @@ try {
             </div>
         <?php endif; ?>
     </div>
-
-    <!-- Delete Confirmation Modal -->
     <div id="deleteModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm opacity-0 transition-opacity duration-300">
         <div class="glass p-6 sm:p-8 rounded-2xl max-w-sm w-full mx-4 transform scale-95 transition-transform duration-300 border-red-500/20">
             <h3 class="text-xl sm:text-2xl text-white mb-4 font-light italic tracking-tighter">Delete Note?</h3>
@@ -172,12 +156,10 @@ try {
             </form>
         </div>
     </div>
-
     <script>
         const modal = document.getElementById('deleteModal');
         const deleteInput = document.getElementById('delete_id_input');
         const modalContent = modal.querySelector('div.glass');
-
         function openModal(id) {
             deleteInput.value = id;
             modal.classList.remove('hidden');
@@ -187,7 +169,6 @@ try {
             modal.classList.remove('opacity-0');
             modalContent.classList.remove('scale-95');
         }
-
         function closeModal() {
             modal.classList.add('opacity-0');
             modalContent.classList.add('scale-95');
