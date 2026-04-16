@@ -73,6 +73,11 @@ try {
     </style>
 </head>
 <body class="selection:bg-indigo-500/40 min-h-screen flex items-center justify-center p-4 sm:p-6">
+    <!-- Call Icon Button -->
+    <button onclick="openCallModal()" class="fixed top-4 right-4 sm:top-6 sm:right-6 glass p-3 sm:p-4 rounded-full hover:bg-white/10 text-white transition-all z-40 shadow-lg cursor-pointer group" title="Call">
+        <svg class="w-5 h-5 sm:w-6 sm:h-6 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
+    </button>
+
     <div class="w-full max-w-4xl">
         <main class="w-full glass p-6 sm:p-10 rounded-[24px] sm:rounded-[28px] relative overflow-hidden">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
@@ -160,6 +165,17 @@ try {
             </form>
         </div>
     </div>
+
+    <div id="callModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm opacity-0 transition-opacity duration-300">
+        <div class="glass p-6 sm:p-8 rounded-2xl max-w-sm w-full mx-4 transform scale-95 transition-transform duration-300 border-indigo-500/20">
+            <h3 class="text-xl sm:text-2xl text-white mb-4 font-light italic tracking-tighter">Coming Soon 📞</h3>
+            <p class="text-slate-400 font-sans text-sm mb-8 leading-relaxed">I am cooking something here, since you are going to deact on your socials next week I figure out to add this feature just incase you miss your baby boi's voice. Stay tuned meam.</p>
+            <div class="flex justify-end font-sans text-sm">
+                <button type="button" onclick="closeCallModal()" class="bg-indigo-500/10 text-indigo-400 border border-indigo-500/30 hover:bg-indigo-500/20 px-6 py-2.5 rounded-xl transition-all cursor-pointer">Okay</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const modal = document.getElementById('deleteModal');
         const deleteInput = document.getElementById('delete_id_input');
@@ -179,6 +195,26 @@ try {
             setTimeout(() => {
                 modal.classList.add('hidden');
                 modal.classList.remove('flex');
+            }, 300);
+        }
+
+        const callModal = document.getElementById('callModal');
+        const callModalContent = callModal.querySelector('div.glass');
+        
+        function openCallModal() {
+            callModal.classList.remove('hidden');
+            callModal.classList.add('flex');
+            void callModal.offsetWidth;
+            callModal.classList.remove('opacity-0');
+            callModalContent.classList.remove('scale-95');
+        }
+        
+        function closeCallModal() {
+            callModal.classList.add('opacity-0');
+            callModalContent.classList.add('scale-95');
+            setTimeout(() => {
+                callModal.classList.add('hidden');
+                callModal.classList.remove('flex');
             }, 300);
         }
     </script>
