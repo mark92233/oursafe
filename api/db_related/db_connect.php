@@ -1,4 +1,7 @@
 <?php
+// Set PHP's default timezone to Philippine Time
+date_default_timezone_set('Asia/Manila');
+
 // Supabase PostgreSQL database configuration
 $host = 'aws-1-ap-southeast-1.pooler.supabase.com'; // Use the Session connection pooler host from your dashboard
 $port = '5432'; // Default Supabase port
@@ -13,6 +16,9 @@ try {
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
+    
+    // Force PostgreSQL connection to use Philippine Time
+    $pdo->exec("SET TIME ZONE 'Asia/Manila'");
 } catch (PDOException $e) {
     die("Connection failed: " . $e->getMessage());
 }
