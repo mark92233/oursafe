@@ -17,6 +17,9 @@ if (isset($_POST['search_track'])) {
 }
 
 if ($is_search) {
+    // Suppress PHP warnings from breaking the JSON response
+    error_reporting(0);
+
     // ⚠️ REPLACE THESE WITH YOUR ACTUAL SPOTIFY API KEYS
     $client_id = 'b87977d6f5674647b3db50d8e5024792';
     $client_secret = '7786ac9bc594488b8fa33fe6cc653538';
@@ -30,7 +33,6 @@ if ($is_search) {
     curl_setopt($ch, CURLOPT_POSTFIELDS, 'grant_type=client_credentials');
     curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Basic ' . base64_encode($client_id . ':' . $client_secret), 'Content-Type: application/x-www-form-urlencoded']);
     $token_result = json_decode(curl_exec($ch), true);
-    curl_close($ch);
 
     // 2. Search Spotify
     if (isset($token_result['access_token'])) {
@@ -38,7 +40,6 @@ if ($is_search) {
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
         curl_setopt($ch, CURLOPT_HTTPHEADER, ['Authorization: Bearer ' . $token_result['access_token']]);
         $search_result = curl_exec($ch);
-        curl_close($ch);
         header('Content-Type: application/json');
         echo $search_result;
     } else {
