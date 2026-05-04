@@ -182,7 +182,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Debounce request by 500ms so we don't spam the API while typing
             searchTimeout = setTimeout(() => {
-                fetch(`?search_track=${encodeURIComponent(query)}`)
+                fetch(window.location.href, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'search_track=' + encodeURIComponent(query)
+                })
                     .then(res => res.json())
                     .then(data => {
                         searchResults.innerHTML = '';
@@ -204,7 +208,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             searchResults.innerHTML = '<div class="p-4 text-slate-400 text-sm italic">No results found or missing API keys.</div>';
                             searchResults.classList.remove('hidden');
                         }
-                    }).catch(() => searchResults.classList.add('hidden'));
+                    }).catch(err => {
+                        console.error('Search error:', err);
+                        searchResults.innerHTML = '<div class="p-4 text-red-400 text-sm italic">Failed to search. Check console.</div>';
+                        searchResults.classList.remove('hidden');
+                    });
             }, 500);
         });
 
