@@ -2,12 +2,26 @@
 require_once __DIR__ . '/db_related/db_connect.php';
 
 // --- SPOTIFY API SEARCH HANDLER ---
-if (isset($_GET['search_track'])) {
+$is_search = false;
+$search_query = '';
+if (isset($_POST['search_track'])) {
+    $search_query = $_POST['search_track'];
+    $is_search = true;
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $raw_body = file_get_contents('php://input');
+    parse_str($raw_body, $parsed);
+    if (isset($parsed['search_track'])) {
+        $search_query = $parsed['search_track'];
+        $is_search = true;
+    }
+}
+
+if ($is_search) {
     // ⚠️ REPLACE THESE WITH YOUR ACTUAL SPOTIFY API KEYS
     $client_id = 'b87977d6f5674647b3db50d8e5024792';
     $client_secret = '7786ac9bc594488b8fa33fe6cc653538';
 
-    $query = urlencode($_GET['search_track']);
+    $query = urlencode($search_query);
     
     // 1. Get Access Token
     $ch = curl_init('https://accounts.spotify.com/api/token');
@@ -35,7 +49,7 @@ if (isset($_GET['search_track'])) {
 
 $feedback = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$is_search) {
     $title = $_POST['title'] ?? '';
     $message = $_POST['message'] ?? '';
     $writer = $_POST['writer'] ?? 'Kaye';
@@ -182,12 +196,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // Debounce request by 500ms so we don't spam the API while typing
             searchTimeout = setTimeout(() => {
-                fetch(window.location.href, {
+                fetch(window.location.pathname, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                     body: 'search_track=' + encodeURIComponent(query)
                 })
-                    .then(res => res.json())
+                    .then(async res => {
+                        const text = await res.text();
+                        try {
+                            return JSON.parse(text);
+                        } catch (e) {
+                            console.error('Raw response from server:', text);
+                            throw new Error('Server returned HTML instead of JSON. See console for details.');
+                        }
+                    })
                     .then(data => {
                         searchResults.innerHTML = '';
                         if (data.tracks && data.tracks.items.length > 0) {
