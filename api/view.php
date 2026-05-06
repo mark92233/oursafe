@@ -7,6 +7,11 @@ $return_page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['p
 
 if (isset($_GET['id']) && is_numeric($_GET['id'])) {
     try {
+        // Auto-patch database schema if columns are missing
+        try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS view_count INT NOT NULL DEFAULT 0"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS spotify_track_id VARCHAR(100)"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS image_path VARCHAR(255)"); } catch (PDOException $e) {}
+
         // Increment view count
         $updateStmt = $pdo->prepare("UPDATE messages SET view_count = view_count + 1 WHERE id = :id");
         $updateStmt->execute(['id' => $_GET['id']]);
@@ -109,6 +114,7 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
         <?php endif; ?>
     </main>
 
+    <?php if (!empty($msg) && !empty($msg['image_path'])): ?>
     <!-- Premium Image Viewer Modal (Lightbox) -->
     <div id="imageViewerModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/90 backdrop-blur-2xl opacity-0 transition-opacity duration-300" onclick="closeImageViewer()">
         <button class="absolute top-6 right-6 text-white/50 hover:text-white hover:bg-red-500/20 hover:border-red-500/50 transition-all cursor-pointer p-3 z-50 glass rounded-full hover:rotate-90 duration-300" onclick="closeImageViewer()" title="Close Viewer">
@@ -116,10 +122,10 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
         </button>
         <div class="max-w-5xl w-full max-h-[90vh] p-4 flex justify-center transform scale-95 transition-transform duration-300" id="imageViewerContent" onclick="event.stopPropagation()">
             <div class="glass p-3 sm:p-4 rounded-3xl shadow-[0_0_40px_rgba(0,0,0,0.8)] flex flex-col items-center ring-1 ring-white/10 relative">
-                <img src="<?= isset($msg['image_path']) ? htmlspecialchars($msg['image_path']) : '' ?>" alt="Memory Full Image" class="max-w-full max-h-[75vh] object-contain rounded-xl">
+                <img src="<?= htmlspecialchars($msg['image_path']) ?>" alt="Memory Full Image" class="max-w-full max-h-[75vh] object-contain rounded-xl">
                 <div class="w-full pt-4 flex justify-between items-center px-2 opacity-80">
                     <span class="mono text-[10px] uppercase tracking-[0.2em] text-pink-400">Captured Memory</span>
-                    <span class="mono text-[10px] text-slate-400"><?= isset($msg['created_at']) ? date('m.d.Y', strtotime($msg['created_at'])) : '' ?></span>
+                    <span class="mono text-[10px] text-slate-400"><?= date('m.d.Y', strtotime($msg['created_at'])) ?></span>
                 </div>
             </div>
         </div>
@@ -146,5 +152,6 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
             }, 300);
         }
     </script>
+    <?php endif; ?>
 </body>
 </html>

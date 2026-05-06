@@ -67,21 +67,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST) && empty($_FILES) && 
 
     // Handle image upload logic
     if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
-        $upload_dir = __DIR__ . '/uploads/';
-        if (!is_dir($upload_dir)) {
-            mkdir($upload_dir, 0755, true);
-        }
         $file_extension = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
         $allowed_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
         
         if (in_array($file_extension, $allowed_exts)) {
             $new_filename = uniqid('mem_') . '.' . $file_extension;
-            $destination = $upload_dir . $new_filename;
-            if (move_uploaded_file($_FILES['image']['tmp_name'], $destination)) {
-                $image_path = 'uploads/' . $new_filename;
+            
+            // --- SUPABASE CONFIGURATION ---
+            // ⚠️ CRITICAL: The "JWS Protected Header is invalid" error means the key below is incorrect or malformed.
+            // For better security, consider using environment variables instead of hardcoding keys.
+            // 1. Go to your Supabase Dashboard -> Project Settings -> API.
+            // 2. Find the "Project API keys" section.
+            // 3. Copy the ENTIRE key from the "service_role" (secret) field.
+            // 4. Paste it here, replacing the placeholder.
+            $supabase_url = 'https://jvqeqliakfulibnszgdj.supabase.co'; // Deduced from your db_connect
+            $supabase_key = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2cWVxbGlha2Z1bGlibnN6Z2RqIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjE2MDc3MywiZXhwIjoyMDkxNzM2NzczfQ.amczCBuX11sjF6XitSU0OxM9hSl00Y5FcA9cEnDMG50'; // 👈 PASTE YOUR REAL KEY HERE
+            $bucket_name = 'archive_images';
+            
+            $file_tmp_path = $_FILES['image']['tmp_name'];
+            $file_content = file_get_contents($file_tmp_path);
+            $file_mime = mime_content_type($file_tmp_path) ?: 'image/jpeg';
+            
+            $ch = curl_init("$supabase_url/storage/v1/object/$bucket_name/$new_filename");
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $file_content);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                "Authorization: Bearer $supabase_key",
+                "Content-Type: $file_mime"
+            ]);
+            
+            $response = curl_exec($ch);
+            $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            
+            if ($http_code === 200 || $http_code === 201) {
+                // Store the absolute public URL directly in the database
+                $image_path = "$supabase_url/storage/v1/object/public/$bucket_name/$new_filename";
             } else {
                 $upload_ok = false;
-                $feedback = "<div class='text-red-400 mb-6 p-4 glass rounded-xl border-red-500/30 font-sans text-sm'>Error: Failed to save the uploaded image.</div>";
+                $error_msg = json_decode($response, true)['message'] ?? 'Unknown error';
+                $feedback = "<div class='text-red-400 mb-6 p-4 glass rounded-xl border-red-500/30 font-sans text-sm'>Supabase Upload Error: " . htmlspecialchars($error_msg) . "</div>";
             }
         } else {
             $upload_ok = false;
