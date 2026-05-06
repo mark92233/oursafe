@@ -50,7 +50,13 @@ if ($is_search) {
 
 $feedback = '';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$is_search) {
+// Catch "Payload Too Large" error where PHP drops $_POST and $_FILES due to post_max_size limit
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST) && empty($_FILES) && isset($_SERVER['CONTENT_LENGTH']) && $_SERVER['CONTENT_LENGTH'] > 0 && !$is_search) {
+    $max_size = ini_get('post_max_size');
+    $feedback = "<div class='text-red-400 mb-6 p-4 glass rounded-xl border-red-500/30 font-sans text-sm'>
+        Error: The payload is too large. Server limit is {$max_size}. Please try a smaller image.
+    </div>";
+} elseif ($_SERVER['REQUEST_METHOD'] === 'POST' && !$is_search) {
     $title = $_POST['title'] ?? '';
     $message = $_POST['message'] ?? '';
     $writer = $_POST['writer'] ?? 'Kaye';
@@ -313,11 +319,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$is_search) {
         function previewImage(event) {
             const file = event.target.files[0];
             if (file) {
+                if (!file.type.startsWith('image/')) {
+                    alert('Please select a valid image file.');
+                    return;
+                }
+
+                // Show loading state while compressing
+                const placeholder = document.getElementById('upload_placeholder');
+                const originalHtml = placeholder.innerHTML;
+                placeholder.innerHTML = '<span class="text-pink-400 text-sm font-sans animate-pulse">Compressing image...</span>';
+
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    document.getElementById('image_preview').src = e.target.result;
-                    document.getElementById('image_preview_container').classList.remove('hidden');
-                    document.getElementById('upload_placeholder').classList.add('hidden');
+                    const img = new Image();
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        const MAX_WIDTH = 1200; // Resize to a max reasonable width/height
+                        const MAX_HEIGHT = 1200;
+                        let width = img.width;
+                        let height = img.height;
+
+                        if (width > height && width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        } else if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        // Compress to JPEG at 80% quality
+                        canvas.toBlob(function(blob) {
+                            let fileName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+                            const newFile = new File([blob], fileName, { type: 'image/jpeg', lastModified: Date.now() });
+                            
+                            const dataTransfer = new DataTransfer();
+                            dataTransfer.items.add(newFile);
+                            document.getElementById('image_upload').files = dataTransfer.files;
+                            
+                            document.getElementById('image_preview').src = URL.createObjectURL(blob);
+                            document.getElementById('image_preview_container').classList.remove('hidden');
+                            placeholder.classList.add('hidden');
+                            placeholder.innerHTML = originalHtml; // Restore placeholder for later
+                        }, 'image/jpeg', 0.8);
+                    };
+                    img.src = e.target.result;
                 }
                 reader.readAsDataURL(file);
             }
