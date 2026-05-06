@@ -56,11 +56,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$is_search) {
     $writer = $_POST['writer'] ?? 'Kaye';
     $spotify_track_id = !empty($_POST['spotify_track_id']) ? $_POST['spotify_track_id'] : null;
 
-    if (!empty($title) && !empty($message)) {
+    $image_path = null;
+    $upload_ok = true;
+
+    // Handle image upload logic
+    if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
+        $upload_dir = __DIR__ . '/uploads/';
+        if (!is_dir($upload_dir)) {
+            mkdir($upload_dir, 0755, true);
+        }
+        $file_extension = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
+        $allowed_exts = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+        
+        if (in_array($file_extension, $allowed_exts)) {
+            $new_filename = uniqid('mem_') . '.' . $file_extension;
+            $destination = $upload_dir . $new_filename;
+            if (move_uploaded_file($_FILES['image']['tmp_name'], $destination)) {
+                $image_path = 'uploads/' . $new_filename;
+            } else {
+                $upload_ok = false;
+                $feedback = "<div class='text-red-400 mb-6 p-4 glass rounded-xl border-red-500/30 font-sans text-sm'>Error: Failed to save the uploaded image.</div>";
+            }
+        } else {
+            $upload_ok = false;
+            $feedback = "<div class='text-red-400 mb-6 p-4 glass rounded-xl border-red-500/30 font-sans text-sm'>Error: Invalid image format. Allowed: JPG, JPEG, PNG, GIF, WEBP.</div>";
+        }
+    }
+
+    if (!empty($title) && !empty($message) && $upload_ok) {
         try {
             try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS writer VARCHAR(50) NOT NULL DEFAULT 'Kaye'"); } catch (PDOException $e) {}
             try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS view_count INT NOT NULL DEFAULT 0"); } catch (PDOException $e) {}
             try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS spotify_track_id VARCHAR(100)"); } catch (PDOException $e) {}
+            try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS image_path VARCHAR(255)"); } catch (PDOException $e) {}
 
             // Auto-create the table if it doesn't exist yet
             $pdo->exec("CREATE TABLE IF NOT EXISTS messages (
@@ -70,16 +98,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$is_search) {
                 message TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 view_count INT NOT NULL DEFAULT 0,
-                spotify_track_id VARCHAR(100)
+                spotify_track_id VARCHAR(100),
+                image_path VARCHAR(255)
             )");
 
             // Insert the form data into the database securely
-            $stmt = $pdo->prepare("INSERT INTO messages (writer, title, message, spotify_track_id) VALUES (:writer, :title, :message, :spotify_track_id)");
+            $stmt = $pdo->prepare("INSERT INTO messages (writer, title, message, spotify_track_id, image_path) VALUES (:writer, :title, :message, :spotify_track_id, :image_path)");
             $stmt->execute([
                 'writer' => $writer,
                 'title' => $title,
                 'message' => $message,
-                'spotify_track_id' => $spotify_track_id
+                'spotify_track_id' => $spotify_track_id,
+                'image_path' => $image_path
             ]);
             
             header("Location: res.php");
@@ -87,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$is_search) {
         } catch (PDOException $e) {
             $feedback = "<div class='text-red-400 mb-6 p-4 glass rounded-xl border-red-500/30 font-sans text-sm'>Error: " . htmlspecialchars($e->getMessage()) . "</div>";
         }
-    } else {
+    } elseif (empty($feedback)) {
         $feedback = "<div class='text-yellow-400 mb-6 p-4 glass rounded-xl border-yellow-500/30 font-sans text-sm'>Please fill in both fields.</div>";
     }
 }
@@ -134,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$is_search) {
 
         <?= $feedback ?>
         
-        <form action="" method="POST" class="space-y-6 font-sans">
+        <form action="" method="POST" enctype="multipart/form-data" class="space-y-6 font-sans">
             <div>
                 <label for="writer" class="block mono text-[10px] uppercase tracking-[0.2em] text-pink-400 mb-2 font-bold">Writer</label>
                 <select id="writer" name="writer" required class="w-full bg-black/40 border border-white/10 rounded-xl p-3.5 text-white focus:outline-none focus:border-pink-500 transition-colors appearance-none cursor-pointer">
@@ -172,6 +202,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$is_search) {
                 <!-- Search Results Dropdown -->
                 <div id="search_results" class="hidden absolute z-50 w-full mt-2 bg-[#121212] border border-white/10 rounded-xl shadow-2xl max-h-60 overflow-y-auto">
                     <!-- Dynamic content injected here via JS -->
+                </div>
+            </div>
+
+            <!-- Image Upload UI -->
+            <div>
+                <label class="block mono text-[10px] uppercase tracking-[0.2em] text-pink-400 mb-2 font-bold">Attach an Image (Optional)</label>
+                <div class="relative w-full glass border border-white/10 hover:border-pink-500/50 transition-colors rounded-xl p-4 flex flex-col items-center justify-center cursor-pointer group" onclick="document.getElementById('image_upload').click()">
+                    <input type="file" id="image_upload" name="image" accept="image/*" class="hidden" onchange="previewImage(event)">
+                    <div id="upload_placeholder" class="flex flex-col items-center pointer-events-none transition-opacity duration-300">
+                        <svg class="w-8 h-8 text-white/30 group-hover:text-pink-400 transition-colors mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                        <span class="text-white/50 text-sm font-sans group-hover:text-white transition-colors">Click to upload image</span>
+                    </div>
+                    <div id="image_preview_container" class="hidden w-full relative">
+                        <img id="image_preview" src="" alt="Preview" class="w-full h-48 sm:h-64 object-contain rounded-lg">
+                        <button type="button" onclick="removeImage(event)" class="absolute top-2 right-2 bg-black/60 text-white rounded-full p-2 hover:bg-red-500/80 transition-colors">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -260,6 +308,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$is_search) {
             searchInput.classList.remove('hidden');
             selectedSong.classList.add('hidden');
             selectedSong.classList.remove('flex');
+        }
+
+        function previewImage(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('image_preview').src = e.target.result;
+                    document.getElementById('image_preview_container').classList.remove('hidden');
+                    document.getElementById('upload_placeholder').classList.add('hidden');
+                }
+                reader.readAsDataURL(file);
+            }
+        }
+        function removeImage(event) {
+            event.stopPropagation();
+            document.getElementById('image_upload').value = '';
+            document.getElementById('image_preview').src = '';
+            document.getElementById('image_preview_container').classList.add('hidden');
+            document.getElementById('upload_placeholder').classList.remove('hidden');
         }
     </script>
 </body>
