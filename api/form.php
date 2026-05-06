@@ -99,7 +99,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST) && empty($_FILES) && 
             
             $response = curl_exec($ch);
             $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            curl_close($ch);
             
             if ($http_code === 200 || $http_code === 201) {
                 // Store the absolute public URL directly in the database
