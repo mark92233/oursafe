@@ -1,9 +1,33 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+ini_set('display_errors', 0);
+ini_set('display_startup_errors', 0);
 error_reporting(E_ALL);
 
 require_once __DIR__ . '/db_related/db_connect.php';
+require_once __DIR__ . '/logger.php';
+
+// Log this page visit (handling pagination as a single session)
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+$log_id = null;
+$initial_time = 0;
+
+if (isset($_SESSION['archive_log_id'])) {
+    $stmt = $pdo->prepare("SELECT time_spent_seconds FROM visitor_logs WHERE id = :id");
+    $stmt->execute(['id' => $_SESSION['archive_log_id']]);
+    $existing_time = $stmt->fetchColumn();
+    
+    if ($existing_time !== false) {
+        $log_id = $_SESSION['archive_log_id'];
+        $initial_time = (int)$existing_time;
+    }
+}
+if (!$log_id) {
+    $log_id = log_visitor_action($pdo, 'Opened Archive (res.php)');
+    $_SESSION['archive_log_id'] = $log_id;
+}
 
 // Handle deletion if the form was submitted
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
@@ -263,5 +287,28 @@ try {
             }, 300);
         }
     </script>
+
+<?php if (!empty($log_id)): ?>
+<script>
+    let accumulatedTime = <?= $initial_time ?>;
+    let lastStartTime = Date.now();
+    const logId = <?= $log_id ?>;
+
+    function updateTime() {
+        let currentSpent = accumulatedTime + Math.floor((Date.now() - lastStartTime) / 1000);
+        navigator.sendBeacon('track_time.php', new URLSearchParams({ id: logId, time: currentSpent }));
+    }
+
+    window.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'hidden') {
+            accumulatedTime += Math.floor((Date.now() - lastStartTime) / 1000);
+            updateTime();
+        } else {
+            lastStartTime = Date.now();
+        }
+    });
+    window.addEventListener('pagehide', function(e) { if (document.visibilityState !== 'hidden') updateTime(); });
+</script>
+<?php endif; ?>
 </body>
 </html>

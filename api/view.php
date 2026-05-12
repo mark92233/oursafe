@@ -1,9 +1,11 @@
 <?php
 require_once __DIR__ . '/db_related/db_connect.php';
+require_once __DIR__ . '/logger.php';
 
 $msg = null;
 $error = null;
 $return_page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : 1;
+$log_id = null;
 
 if (isset($_GET['id']) && is_numeric($_GET['id'])) {
     try {
@@ -20,6 +22,11 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
         $stmt = $pdo->prepare("SELECT title, message, writer, created_at, view_count, spotify_track_id, image_path FROM messages WHERE id = :id");
         $stmt->execute(['id' => $_GET['id']]);
         $msg = $stmt->fetch();
+
+        // Log the specific note view action
+        if ($msg) {
+            $log_id = log_visitor_action($pdo, "Viewed Note: \"{$msg['title']}\"");
+        }
         
         if (!$msg) {
             $error = "Note not found in the archive.";
@@ -153,5 +160,28 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
         }
     </script>
     <?php endif; ?>
+
+<?php if (!empty($log_id)): ?>
+<script>
+    let accumulatedTime = 0;
+    let lastStartTime = Date.now();
+    const logId = <?= $log_id ?>;
+
+    function updateTime() {
+        let currentSpent = accumulatedTime + Math.floor((Date.now() - lastStartTime) / 1000);
+        navigator.sendBeacon('track_time.php', new URLSearchParams({ id: logId, time: currentSpent }));
+    }
+
+    window.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'hidden') {
+            accumulatedTime += Math.floor((Date.now() - lastStartTime) / 1000);
+            updateTime();
+        } else {
+            lastStartTime = Date.now();
+        }
+    });
+    window.addEventListener('pagehide', function(e) { if (document.visibilityState !== 'hidden') updateTime(); });
+</script>
+<?php endif; ?>
 </body>
 </html>

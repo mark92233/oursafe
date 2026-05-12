@@ -1,5 +1,9 @@
 <?php
 require_once __DIR__ . '/db_related/db_connect.php';
+require_once __DIR__ . '/logger.php';
+
+// Log this page visit
+$log_id = log_visitor_action($pdo, 'Landed on Homepage');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -110,5 +114,28 @@ require_once __DIR__ . '/db_related/db_connect.php';
         }, { threshold: 0.1 });
         document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
     </script>
+
+<?php if (!empty($log_id)): ?>
+<script>
+    let accumulatedTime = 0;
+    let lastStartTime = Date.now();
+    const logId = <?= $log_id ?>;
+
+    function updateTime() {
+        let currentSpent = accumulatedTime + Math.floor((Date.now() - lastStartTime) / 1000);
+        navigator.sendBeacon('track_time.php', new URLSearchParams({ id: logId, time: currentSpent }));
+    }
+
+    window.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'hidden') {
+            accumulatedTime += Math.floor((Date.now() - lastStartTime) / 1000);
+            updateTime();
+        } else {
+            lastStartTime = Date.now();
+        }
+    });
+    window.addEventListener('pagehide', function(e) { if (document.visibilityState !== 'hidden') updateTime(); });
+</script>
+<?php endif; ?>
 </body>
 </html>
