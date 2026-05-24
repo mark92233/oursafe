@@ -219,7 +219,8 @@ try {
                             </div>
                             <div class="mt-auto flex space-x-3 pt-4 border-t border-white/5">
                                 <a href="view.php?id=<?= $msg['id'] ?>&page=<?= $current_page ?>" class="flex-1 text-center glass hover:bg-white/10 text-white py-2.5 px-4 rounded-xl mono text-[10px] uppercase tracking-widest transition-all">View</a>
-                                <button onclick="openModal(<?= $msg['id'] ?>)" class="flex-1 text-center glass hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 text-white py-2.5 px-4 rounded-xl mono text-[10px] uppercase tracking-widest transition-all cursor-pointer">Delete</button>
+ 
+
                             </div>
                         </div>
                     <?php endforeach; ?>
