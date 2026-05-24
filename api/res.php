@@ -1,9 +1,63 @@
 <?php
+session_start();
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 require_once __DIR__ . '/db_related/db_connect.php';
+
+// Detect browser to apply specific classes
+$userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+$browserClass = '';
+if (strpos($userAgent, 'Edg') !== false) {
+    // It's Edge, do nothing for now.
+} elseif (strpos($userAgent, 'Chrome') !== false) {
+    $browserClass = 'is-chrome';
+} elseif (strpos($userAgent, 'Safari') !== false) {
+    $browserClass = 'is-safari';
+}
+
+// --- PRESENCE DETECTION (Database Method) ---
+$active_users = [];
+try {
+    // Auto-create the presence table if it doesn't exist
+    $pdo->exec("CREATE TABLE IF NOT EXISTS presence (
+        id SERIAL PRIMARY KEY,
+        user_identity VARCHAR(50) UNIQUE NOT NULL,
+        last_seen TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        current_page VARCHAR(100)
+    )");
+
+    $current_user_identity = null;
+    if ($browserClass === 'is-chrome') {
+        $current_user_identity = 'MJ';
+    } elseif ($browserClass === 'is-safari') {
+        $current_user_identity = 'Kaye';
+    }
+
+    // Mark users as inactive if they haven't been seen in the last 60 seconds
+    $timeout_interval = 60; // seconds
+    $pdo->exec("UPDATE presence SET is_active = false WHERE last_seen < NOW() - interval '$timeout_interval seconds'");
+
+    // --- OPTIMIZATION ---
+    // Only write to the database for this user every 50 seconds to reduce load,
+    // even if the page refreshes more frequently.
+    $update_threshold = 50; // seconds
+    $last_update = $_SESSION['last_db_update'] ?? 0;
+    $time_since_last_update = time() - $last_update;
+
+    // Update the current user's status (or create a new record)
+    if ($current_user_identity && $time_since_last_update > $update_threshold) {
+        $stmt = $pdo->prepare("INSERT INTO presence (user_identity, last_seen, is_active, current_page) VALUES (:identity, NOW(), true, 'Viewing Archive') ON CONFLICT (user_identity) DO UPDATE SET last_seen = NOW(), is_active = true, current_page = 'Viewing Archive'");
+        $stmt->execute(['identity' => $current_user_identity]);
+        $_SESSION['last_db_update'] = time(); // Record the time of this update in the session
+    }
+
+    // Fetch all currently active users
+    $active_stmt = $pdo->query("SELECT user_identity FROM presence WHERE is_active = true");
+    $active_users = $active_stmt->fetchAll(PDO::FETCH_COLUMN);
+} catch (PDOException $e) { /* Presence is non-critical, so we fail silently. */ }
 
 // Handle deletion if the form was submitted
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
@@ -63,6 +117,9 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <?php if ($browserClass === 'is-chrome'): ?>
+    <meta http-equiv="refresh" content="30">
+    <?php endif; ?>
     <title>Results - Archive for Kaye</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
@@ -86,7 +143,7 @@ try {
         @keyframes float3 { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(-30vw, 40vh) scale(0.8); } }
     </style>
 </head>
-<body class="selection:bg-pink-500/40 min-h-screen flex items-center justify-center p-4 sm:p-6 relative z-0">
+<body class="selection:bg-pink-500/40 min-h-screen flex items-center justify-center p-4 sm:p-6 relative z-0 <?= $browserClass ?>">
     <div class="noise-overlay"></div>
     <div class="glow-sphere pink-1"></div>
     <div class="glow-sphere pink-2"></div>
@@ -108,6 +165,26 @@ try {
             </div>
             <div class="mb-8 p-6 glass rounded-2xl border-white/10 text-slate-300 font-sans text-[15px] leading-relaxed">
                 I’ve made a little space for you on the site. You don’t ever have to feel pressured to use it, but if you ever have a thought you want to get out or just want to talk without the 'ping' of a notification, you can leave it there. I’ll keep an eye on it whenever I’m writing in my own journal. It’s just a place for us to be, even when we’re standing our ground.
+            </div>
+            <div class="mb-6 flex items-center justify-center gap-x-6 gap-y-2 flex-wrap mono text-xs text-slate-400 opacity-80">
+                <?php if (in_array('MJ', $active_users)): ?>
+                    <div class="flex items-center gap-2.5">
+                        <span class="relative flex h-2 w-2">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                        </span>
+                        <span>MJ is here</span>
+                    </div>
+                <?php endif; ?>
+                <?php if (in_array('Kaye', $active_users)): ?>
+                    <div class="flex items-center gap-2.5">
+                        <span class="relative flex h-2 w-2">
+                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
+                            <span class="relative inline-flex rounded-full h-2 w-2 bg-pink-500"></span>
+                        </span>
+                        <span>Kaye is here</span>
+                    </div>
+                <?php endif; ?>
             </div>
             <?php if (isset($error)): ?>
                 <div class='text-red-400 mb-6 p-4 glass rounded-xl border-red-500/30 font-sans text-sm'><?= htmlspecialchars($error) ?></div>
@@ -262,6 +339,26 @@ try {
                 callModal.classList.remove('flex');
             }, 300);
         }
+    </script>
+
+    <!-- Replace 'your-audio-file.mp3' with the path to your actual audio file -->
+    <audio id="viewNotificationSound" src="your-audio-file.mp3" preload="auto"></audio>
+
+    <script>
+        <?php if (!empty($messages) && isset($current_page) && $current_page === 1): ?>
+            const latestNoteId = <?= json_encode($messages[0]['id']) ?>;
+            const latestNoteViews = <?= (int)$messages[0]['view_count'] ?>;
+            const storageKey = 'latest_note_views_' + latestNoteId;
+            const previousViews = localStorage.getItem(storageKey);
+            
+            if (previousViews !== null) {
+                if (parseInt(previousViews) === 0 && latestNoteViews > 0) {
+                    const audio = document.getElementById('viewNotificationSound');
+                    audio.play().catch(err => console.log('Audio playback prevented by browser autoplay policy:', err));
+                }
+            }
+            localStorage.setItem(storageKey, latestNoteViews);
+        <?php endif; ?>
     </script>
 </body>
 </html>

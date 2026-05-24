@@ -1,6 +1,17 @@
 <?php
 require_once __DIR__ . '/db_related/db_connect.php';
 
+// Detect browser to apply specific classes
+$userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+$browserClass = '';
+if (strpos($userAgent, 'Edg') !== false) {
+    // It's Edge, do nothing for now.
+} elseif (strpos($userAgent, 'Chrome') !== false) {
+    $browserClass = 'is-chrome';
+} elseif (strpos($userAgent, 'Safari') !== false) {
+    $browserClass = 'is-safari';
+}
+
 // --- SPOTIFY API SEARCH HANDLER ---
 $is_search = false;
 $search_query = '';
@@ -181,7 +192,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST) && empty($_FILES) && 
         @keyframes float3 { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(-30vw, 40vh) scale(0.8); } }
     </style>
 </head>
-<body class="selection:bg-pink-500/40 min-h-screen flex items-center justify-center p-4 sm:p-6 relative z-0">
+<body class="selection:bg-pink-500/40 min-h-screen flex items-center justify-center p-4 sm:p-6 relative z-0 <?= $browserClass ?>">
     <div class="noise-overlay"></div>
     <div class="glow-sphere pink-1"></div>
     <div class="glow-sphere pink-2"></div>
