@@ -6,6 +6,43 @@ error_reporting(E_ALL);
 
 require_once __DIR__ . '/db_related/db_connect.php';
 
+// --- AJAX Presence Handler ---
+if (isset($_POST['update_presence_ajax'])) {
+    // This part is for handling async presence updates from JS
+    error_reporting(0);
+    header('Content-Type: application/json');
+
+    $current_user_identity = null;
+    $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+    if (strpos($userAgent, 'Chrome') !== false) {
+        $current_user_identity = 'MJ';
+    } elseif (strpos($userAgent, 'Safari') !== false) {
+        $current_user_identity = 'Kaye';
+    }
+
+    if ($current_user_identity) {
+        $status_state = $_POST['status_state'] ?? 'blurred';
+        $page_status = $_POST['page_status'] ?? 'Idle / Away';
+
+        try {
+            if ($status_state === 'focused') {
+                $stmt = $pdo->prepare("INSERT INTO presence (user_identity, last_seen, is_active, current_page) VALUES (:identity, NOW(), true, :page_status) ON CONFLICT (user_identity) DO UPDATE SET last_seen = NOW(), is_active = true, current_page = :page_status");
+                $stmt->execute(['identity' => $current_user_identity, 'page_status' => $page_status]);
+            } else { // blurred
+                $stmt = $pdo->prepare("UPDATE presence SET is_active = false, current_page = :page_status WHERE user_identity = :identity");
+                $stmt->execute(['identity' => $current_user_identity, 'page_status' => $page_status]);
+            }
+            echo json_encode(['status' => 'success']);
+        } catch (PDOException $e) {
+            http_response_code(500);
+            echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        }
+    } else {
+        http_response_code(400);
+        echo json_encode(['status' => 'error', 'message' => 'User identity not determined.']);
+    }
+    exit;
+}
 // Detect browser to apply specific classes
 $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
 $browserClass = '';
@@ -18,7 +55,7 @@ if (strpos($userAgent, 'Edg') !== false) {
 }
 
 // --- PRESENCE DETECTION (Database Method) ---
-$active_users = [];
+$active_users_data = [];
 try {
     // Auto-create the presence table if it doesn't exist
     $pdo->exec("CREATE TABLE IF NOT EXISTS presence (
@@ -39,24 +76,13 @@ try {
     // Mark users as inactive if they haven't been seen in the last 60 seconds
     $timeout_interval = 60; // seconds
     $pdo->exec("UPDATE presence SET is_active = false WHERE last_seen < NOW() - interval '$timeout_interval seconds'");
+    
+    // The old periodic update logic is removed, as it's now handled by the AJAX polling.
+    // The JS will handle the initial presence update on page load.
 
-    // --- OPTIMIZATION ---
-    // Only write to the database for this user every 50 seconds to reduce load,
-    // even if the page refreshes more frequently.
-    $update_threshold = 50; // seconds
-    $last_update = $_SESSION['last_db_update'] ?? 0;
-    $time_since_last_update = time() - $last_update;
-
-    // Update the current user's status (or create a new record)
-    if ($current_user_identity && $time_since_last_update > $update_threshold) {
-        $stmt = $pdo->prepare("INSERT INTO presence (user_identity, last_seen, is_active, current_page) VALUES (:identity, NOW(), true, 'Viewing Archive') ON CONFLICT (user_identity) DO UPDATE SET last_seen = NOW(), is_active = true, current_page = 'Viewing Archive'");
-        $stmt->execute(['identity' => $current_user_identity]);
-        $_SESSION['last_db_update'] = time(); // Record the time of this update in the session
-    }
-
-    // Fetch all currently active users
-    $active_stmt = $pdo->query("SELECT user_identity FROM presence WHERE is_active = true");
-    $active_users = $active_stmt->fetchAll(PDO::FETCH_COLUMN);
+    // Fetch all currently active users and their status for display
+    $active_stmt = $pdo->query("SELECT user_identity, current_page FROM presence WHERE is_active = true");
+    $active_users_data = $active_stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) { /* Presence is non-critical, so we fail silently. */ }
 
 // Handle deletion if the form was submitted
@@ -167,24 +193,35 @@ try {
                 I’ve made a little space for you on the site. You don’t ever have to feel pressured to use it, but if you ever have a thought you want to get out or just want to talk without the 'ping' of a notification, you can leave it there. I’ll keep an eye on it whenever I’m writing in my own journal. It’s just a place for us to be, even when we’re standing our ground.
             </div>
             <div class="mb-6 flex items-center justify-center gap-x-6 gap-y-2 flex-wrap mono text-xs text-slate-400 opacity-80">
-                <?php if (in_array('MJ', $active_users)): ?>
-                    <div class="flex items-center gap-2.5">
-                        <span class="relative flex h-2 w-2">
-                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                            <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                        </span>
-                        <span>MJ is here</span>
-                    </div>
-                <?php endif; ?>
-                <?php if (in_array('Kaye', $active_users)): ?>
-                    <div class="flex items-center gap-2.5">
-                        <span class="relative flex h-2 w-2">
-                            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
-                            <span class="relative inline-flex rounded-full h-2 w-2 bg-pink-500"></span>
-                        </span>
-                        <span>Kaye is here</span>
-                    </div>
-                <?php endif; ?>
+                <?php foreach ($active_users_data as $user): ?>
+                    <?php if ($user['user_identity'] === 'MJ'): ?>
+                        <div class="flex items-center gap-2.5">
+                            <span class="relative flex h-2 w-2">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                            </span>
+                            <span>MJ is here</span>
+                            <?php if ($user['current_page'] === 'Active & Looking 👋'): ?>
+                                <span class="animate-bounce inline-block">👋</span>
+                            <?php else: ?>
+                                <span class="opacity-60">(idle)</span>
+                            <?php endif; ?>
+                        </div>
+                    <?php elseif ($user['user_identity'] === 'Kaye'): ?>
+                        <div class="flex items-center gap-2.5">
+                            <span class="relative flex h-2 w-2">
+                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
+                                <span class="relative inline-flex rounded-full h-2 w-2 bg-pink-500"></span>
+                            </span>
+                            <span>Kaye is here</span>
+                            <?php if ($user['current_page'] === 'Active & Looking 👋'): ?>
+                                <span class="animate-bounce inline-block">👋</span>
+                            <?php else: ?>
+                                <span class="opacity-60">(idle)</span>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+                <?php endforeach; ?>
             </div>
             <?php if (isset($error)): ?>
                 <div class='text-red-400 mb-6 p-4 glass rounded-xl border-red-500/30 font-sans text-sm'><?= htmlspecialchars($error) ?></div>
@@ -205,7 +242,7 @@ try {
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 font-sans">
                 <?php if (!empty($messages)): ?>
                     <?php foreach ($messages as $msg): ?>
-                        <div class="glass p-6 rounded-2xl flex flex-col hover:bg-white/5 transition-colors border-white/5">
+                        <div class="glass p-6 rounded-2xl flex flex-col hover:bg-white/5 transition-colors border-white/5 <?= ($msg['view_count'] ?? 0) == 0 ? 'bg-white/20 border-white/50 shadow-[0_0_25px_rgba(255,255,255,0.15)]' : '' ?>">
                             <span class="text-xs text-pink-400/80 mono mb-3 block uppercase tracking-widest">
                                 <?= htmlspecialchars($msg['writer'] ?? 'MJ') ?> • <?= htmlspecialchars(date('M d, Y g:i a', strtotime($msg['created_at']))) ?> • <?= htmlspecialchars($msg['view_count'] ?? 0) ?> views
                             </span>
@@ -232,7 +269,9 @@ try {
             </div>
         </main>
         <?php if ($total_pages > 1): ?>
-            <?php $writer_param = !empty($filter_writer) ? '&writer=' . urlencode($filter_writer) : ''; ?>
+            <?php 
+                $writer_param = !empty($filter_writer) ? '&writer=' . urlencode($filter_writer) : '';
+            ?>
             <div class="mt-8 flex justify-between items-center font-sans">
                 <div>
                     <?php if ($current_page > 1): ?>
@@ -360,6 +399,54 @@ try {
             }
             localStorage.setItem(storageKey, latestNoteViews);
         <?php endif; ?>
+    </script>
+
+    <script>
+    (function() {
+        let presenceInterval;
+
+        function updatePresence(state, pageStatus) {
+            const body = `update_presence_ajax=1&status_state=${encodeURIComponent(state)}&page_status=${encodeURIComponent(pageStatus)}`;
+
+            // navigator.sendBeacon is ideal for sending data on blur/unload
+            if (navigator.sendBeacon) {
+                const headers = { type: 'application/x-www-form-urlencoded' };
+                const blob = new Blob([body], headers);
+                navigator.sendBeacon('res.php', blob);
+            } else {
+                // Fallback to fetch for older browsers
+                fetch('res.php', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: body,
+                    keepalive: true // Important for requests during page unload
+                }).catch(console.error);
+            }
+        }
+
+        function startPresenceUpdates() {
+            clearInterval(presenceInterval);
+            updatePresence('focused', 'Active & Looking 👋');
+            presenceInterval = setInterval(() => {
+                if (document.hasFocus()) {
+                    updatePresence('focused', 'Active & Looking 👋');
+                }
+            }, 15000); // 15 seconds
+        }
+
+        function stopPresenceUpdates() {
+            clearInterval(presenceInterval);
+            updatePresence('blurred', 'Idle / Away');
+        }
+
+        // Listen for tab focus/blur events and visibility changes
+        window.addEventListener('focus', startPresenceUpdates);
+        window.addEventListener('blur', stopPresenceUpdates);
+        document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' ? startPresenceUpdates() : stopPresenceUpdates());
+
+        // Initial check on page load
+        document.hasFocus() ? startPresenceUpdates() : stopPresenceUpdates();
+    })();
     </script>
 </body>
 </html>
