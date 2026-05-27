@@ -6,10 +6,13 @@
     }
   },
   "routes": [
+    { "src": "/index(?:\\.php)?", "dest": "/api/index.php" },
     { "src": "/res(?:\\.php)?", "dest": "/api/res.php" },
     { "src": "/form(?:\\.php)?", "dest": "/api/form.php" },
-    { "src": "/view\\.php", "dest": "/api/view.php" },
-    { "src": "/index\\.php", "dest": "/api/index.php" },
+    { "src": "/view(?:\\.php)?", "dest": "/api/view.php" },
+    { "src": "/capsules(?:\\.php)?", "dest": "/api/capsules.php" },
+    { "src": "/form_capsule(?:\\.php)?", "dest": "/api/form_capsule.php" },
+    { "src": "/view_capsule(?:\\.php)?", "dest": "/api/view_capsule.php" },
     { "src": "/view/(?<id>.*)", "dest": "/api/view.php?id=$id" },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/api/index.php" }
