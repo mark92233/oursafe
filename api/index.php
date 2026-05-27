@@ -63,8 +63,9 @@ if (strpos($userAgent, 'Edg') !== false) {
             </p>
         </header>
 
-        <div class="mb-24 text-center fade-in">
+        <div class="mb-24 text-center fade-in flex flex-wrap justify-center gap-4">
             <a href="res.php" class="inline-block glass hover:bg-pink-500/10 hover:border-pink-500/40 hover:shadow-[0_0_20px_rgba(244,114,182,0.15)] text-white py-4 px-10 rounded-xl mono text-sm uppercase tracking-widest transition-all duration-500 cursor-pointer group">How was your day? <span class="group-hover:translate-x-1 inline-block transition-transform duration-300">&rarr;</span></a>
+            <a href="capsules.php" class="inline-block glass hover:bg-green-500/10 hover:border-green-500/40 hover:shadow-[0_0_20px_rgba(34,197,94,0.2)] text-white py-4 px-10 rounded-xl mono text-sm uppercase tracking-widest transition-all duration-500 cursor-pointer group">The Capsule Vault <span class="group-hover:translate-x-1 inline-block transition-transform duration-300">&rarr;</span></a>
         </div>
 
         <section class="space-y-16 text-xl md:text-2xl leading-relaxed serif fade-in">
