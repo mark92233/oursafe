@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$is_search) {
                 title VARCHAR(255) NOT NULL,
                 message TEXT NOT NULL,
                 spotify_track_id VARCHAR(100) NULL,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
             )");
 
             $stmt = $pdo->prepare("INSERT INTO capsule_messages (writer, title, message, spotify_track_id) VALUES (:writer, :title, :message, :spotify_track_id)");

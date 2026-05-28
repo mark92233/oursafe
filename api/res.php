@@ -6,6 +6,28 @@ error_reporting(E_ALL);
 
 require_once __DIR__ . '/db_related/db_connect.php';
 
+// Function to create a "time ago" string
+function time_ago($datetime) {
+    if (!$datetime) return 'a long time ago';
+    try {
+        // Ensure both times are in the same timezone for an accurate comparison.
+        $now = new DateTime('now', new DateTimeZone('Asia/Manila'));
+        $ago = new DateTime($datetime, new DateTimeZone('Asia/Manila'));
+    } catch (Exception $e) {
+        return 'a long time ago'; // Handle potential parsing errors
+    }
+    
+    $diff = $now->diff($ago);
+
+    if ($diff->y > 0) return $diff->y . ' year' . ($diff->y > 1 ? 's' : '') . ' ago';
+    if ($diff->m > 0) return $diff->m . ' month' . ($diff->m > 1 ? 's' : '') . ' ago';
+    if ($diff->d > 1) return $diff->d . ' days ago';
+    if ($diff->d == 1) return 'yesterday';
+    if ($diff->h > 0) return $diff->h . ' hour' . ($diff->h > 1 ? 's' : '') . ' ago';
+    if ($diff->i > 0) return $diff->i . ' minute' . ($diff->i > 1 ? 's' : '') . ' ago';
+    return 'just now';
+}
+
 // --- AJAX Presence Handler ---
 if (isset($_POST['update_presence_ajax'])) {
     // This part is for handling async presence updates from JS
@@ -26,6 +48,7 @@ if (isset($_POST['update_presence_ajax'])) {
 
         try {
             if ($status_state === 'focused') {
+                // The NOW() function uses the 'Asia/Manila' timezone set in db_connect.php
                 $stmt = $pdo->prepare("INSERT INTO presence (user_identity, last_seen, is_active, current_page) VALUES (:identity, NOW(), true, :page_status) ON CONFLICT (user_identity) DO UPDATE SET last_seen = NOW(), is_active = true, current_page = :page_status");
                 $stmt->execute(['identity' => $current_user_identity, 'page_status' => $page_status]);
             } else { // blurred
@@ -55,7 +78,7 @@ if (strpos($userAgent, 'Edg') !== false) {
 }
 
 // --- PRESENCE DETECTION (Database Method) ---
-$active_users_data = [];
+$presence_data = [];
 try {
     // Auto-create the presence table if it doesn't exist
     $pdo->exec("CREATE TABLE IF NOT EXISTS presence (
@@ -66,23 +89,13 @@ try {
         current_page VARCHAR(100)
     )");
 
-    $current_user_identity = null;
-    if ($browserClass === 'is-chrome') {
-        $current_user_identity = 'MJ';
-    } elseif ($browserClass === 'is-safari') {
-        $current_user_identity = 'Kaye';
-    }
-
     // Mark users as inactive if they haven't been seen in the last 60 seconds
     $timeout_interval = 60; // seconds
     $pdo->exec("UPDATE presence SET is_active = false WHERE last_seen < NOW() - interval '$timeout_interval seconds'");
     
-    // The old periodic update logic is removed, as it's now handled by the AJAX polling.
-    // The JS will handle the initial presence update on page load.
-
-    // Fetch all currently active users and their status for display
-    $active_stmt = $pdo->query("SELECT user_identity, current_page FROM presence WHERE is_active = true");
-    $active_users_data = $active_stmt->fetchAll(PDO::FETCH_ASSOC);
+    // Fetch all users and their status for display
+    $presence_stmt = $pdo->query("SELECT user_identity, current_page, is_active, last_seen FROM presence");
+    $presence_data = $presence_stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) { /* Presence is non-critical, so we fail silently. */ }
 
 // Handle deletion if the form was submitted
@@ -193,31 +206,41 @@ try {
                 I’ve made a little space for you on the site. You don’t ever have to feel pressured to use it, but if you ever have a thought you want to get out or just want to talk without the 'ping' of a notification, you can leave it there. I’ll keep an eye on it whenever I’m writing in my own journal. It’s just a place for us to be, even when we’re standing our ground.
             </div>
             <div class="mb-6 flex items-center justify-center gap-x-6 gap-y-2 flex-wrap mono text-xs text-slate-400 opacity-80">
-                <?php foreach ($active_users_data as $user): ?>
+                <?php foreach ($presence_data as $user): ?>
                     <?php if ($user['user_identity'] === 'MJ'): ?>
                         <div class="flex items-center gap-2.5">
-                            <span class="relative flex h-2 w-2">
-                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                            </span>
-                            <span>MJ is here</span>
-                            <?php if ($user['current_page'] === 'Active & Looking 👋'): ?>
-                                <span class="animate-bounce inline-block">👋</span>
+                            <?php if ($user['is_active']): ?>
+                                <span class="relative flex h-2 w-2">
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                </span>
+                                <span>MJ is here</span>
+                                <?php if ($user['current_page'] === 'Active & Looking 👋'): ?>
+                                    <span class="animate-bounce inline-block">👋</span>
+                                <?php else: ?>
+                                    <span class="opacity-60">(idle)</span>
+                                <?php endif; ?>
                             <?php else: ?>
-                                <span class="opacity-60">(idle)</span>
+                                <span class="relative flex h-2 w-2"><span class="relative inline-flex rounded-full h-2 w-2 bg-slate-500"></span></span>
+                                <span>MJ was last seen <?= time_ago($user['last_seen']) ?></span>
                             <?php endif; ?>
                         </div>
                     <?php elseif ($user['user_identity'] === 'Kaye'): ?>
                         <div class="flex items-center gap-2.5">
-                            <span class="relative flex h-2 w-2">
-                                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
-                                <span class="relative inline-flex rounded-full h-2 w-2 bg-pink-500"></span>
-                            </span>
-                            <span>Kaye is here</span>
-                            <?php if ($user['current_page'] === 'Active & Looking 👋'): ?>
-                                <span class="animate-bounce inline-block">👋</span>
+                            <?php if ($user['is_active']): ?>
+                                <span class="relative flex h-2 w-2">
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-pink-400 opacity-75"></span>
+                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-pink-500"></span>
+                                </span>
+                                <span>Kaye is here</span>
+                                <?php if ($user['current_page'] === 'Active & Looking 👋'): ?>
+                                    <span class="animate-bounce inline-block">👋</span>
+                                <?php else: ?>
+                                    <span class="opacity-60">(idle)</span>
+                                <?php endif; ?>
                             <?php else: ?>
-                                <span class="opacity-60">(idle)</span>
+                                <span class="relative flex h-2 w-2"><span class="relative inline-flex rounded-full h-2 w-2 bg-slate-500"></span></span>
+                                <span>Kaye was last seen <?= time_ago($user['last_seen']) ?></span>
                             <?php endif; ?>
                         </div>
                     <?php endif; ?>

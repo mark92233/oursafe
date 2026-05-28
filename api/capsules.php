@@ -26,7 +26,7 @@ try {
         title VARCHAR(255) NOT NULL,
         message TEXT NOT NULL,
         spotify_track_id VARCHAR(100) NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
     )");
 
 } catch (PDOException $e) {

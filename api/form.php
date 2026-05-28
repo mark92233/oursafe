@@ -138,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST) && empty($_FILES) && 
                 writer VARCHAR(50) NOT NULL DEFAULT 'Kaye',
                 title VARCHAR(255) NOT NULL,
                 message TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 view_count INT NOT NULL DEFAULT 0,
                 spotify_track_id VARCHAR(100),
                 image_path VARCHAR(255)
