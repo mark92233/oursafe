@@ -28,6 +28,17 @@ function time_ago($datetime) {
     return 'just now';
 }
 
+// Detect browser to apply specific classes
+$userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+$browserClass = '';
+if (strpos($userAgent, 'Edg') !== false) {
+    // It's Edge, do nothing for now.
+} elseif (strpos($userAgent, 'Chrome') !== false) {
+    $browserClass = 'is-chrome';
+} elseif (strpos($userAgent, 'Safari') !== false) {
+    $browserClass = 'is-safari';
+}
+
 // --- AJAX Presence Handler ---
 if (isset($_POST['update_presence_ajax'])) {
     // This part is for handling async presence updates from JS
@@ -41,6 +52,7 @@ if (isset($_POST['update_presence_ajax'])) {
     } elseif (strpos($userAgent, 'Safari') !== false) {
         $current_user_identity = 'Kaye';
     }
+
 
     if ($current_user_identity) {
         $status_state = $_POST['status_state'] ?? 'blurred';
@@ -66,20 +78,9 @@ if (isset($_POST['update_presence_ajax'])) {
     }
     exit;
 }
-// Detect browser to apply specific classes
-$userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
-$browserClass = '';
-if (strpos($userAgent, 'Edg') !== false) {
-    // It's Edge, do nothing for now.
-} elseif (strpos($userAgent, 'Chrome') !== false) {
-    $browserClass = 'is-chrome';
-} elseif (strpos($userAgent, 'Safari') !== false) {
-    $browserClass = 'is-safari';
-}
 
 // --- PRESENCE DETECTION (Database Method) ---
 $presence_data = [];
-$kaye_is_recently_active = false; // For MJ's blinking screen
 try {
     // Auto-create the presence table if it doesn't exist
     $pdo->exec("CREATE TABLE IF NOT EXISTS presence (
@@ -96,22 +97,7 @@ try {
     
     // Fetch all users and their status for display
     $presence_stmt = $pdo->query("SELECT user_identity, current_page, is_active, last_seen FROM presence");
-    $all_presence = $presence_stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Process presence data and check for Kaye's recent activity
-    foreach ($all_presence as $user) {
-        if ($user['user_identity'] === 'Kaye' && $user['last_seen']) {
-            try {
-                $last_seen_kaye = new DateTime($user['last_seen'], new DateTimeZone('Asia/Manila'));
-                $now = new DateTime('now', new DateTimeZone('Asia/Manila'));
-                // Check if last seen was within the last 5 minutes (300 seconds)
-                if (($now->getTimestamp() - $last_seen_kaye->getTimestamp()) < 300) {
-                    $kaye_is_recently_active = true;
-                }
-            } catch (Exception $e) { /* Fails if last_seen is null or invalid, which is fine. */ }
-        }
-    }
-    $presence_data = $all_presence;
+    $presence_data = $presence_stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) { /* Presence is non-critical, so we fail silently. */ }
 
 // Handle deletion if the form was submitted
@@ -167,26 +153,12 @@ try {
     $messages = [];
 }
 
-// Get the writer of the very last message
-$last_message_writer = null;
-try {
-    $last_msg_stmt = $pdo->query("SELECT writer FROM messages ORDER BY created_at DESC LIMIT 1");
-    $last_msg = $last_msg_stmt->fetch();
-    if ($last_msg) {
-        $last_message_writer = $last_msg['writer'];
-    }
-} catch (PDOException $e) { /* Fail silently */ }
-
-$blink_class = ($browserClass === 'is-chrome' && $kaye_is_recently_active) ? 'blink-effect' : '';
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <?php if ($browserClass === 'is-chrome'): ?>
-    <meta http-equiv="refresh" content="30">
-    <?php endif; ?>
     <title>Results - Archive for Kaye</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
@@ -208,17 +180,9 @@ $blink_class = ($browserClass === 'is-chrome' && $kaye_is_recently_active) ? 'bl
         @keyframes float1 { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(40vw, 30vh) scale(1.3); } }
         @keyframes float2 { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(-40vw, -30vh) scale(1.4); } }
         @keyframes float3 { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(-30vw, 40vh) scale(0.8); } }
-
-        @keyframes blink-animation {
-            0%, 100% { background-color: #030303; }
-            50% { background-color: #FFFFFF; }
-        }
-        .blink-effect {
-            animation: blink-animation 1.5s infinite step-end;
-        }
     </style>
 </head>
-<body class="selection:bg-pink-500/40 min-h-screen flex items-center justify-center p-4 sm:p-6 relative z-0 <?= $browserClass ?> <?= $blink_class ?>">
+<body class="selection:bg-pink-500/40 min-h-screen flex items-center justify-center p-4 sm:p-6 relative z-0 <?= $browserClass ?>">
     <div class="noise-overlay"></div>
     <div class="glow-sphere pink-1"></div>
     <div class="glow-sphere pink-2"></div>
@@ -244,30 +208,23 @@ $blink_class = ($browserClass === 'is-chrome' && $kaye_is_recently_active) ? 'bl
             <div class="mb-6 flex items-center justify-center gap-x-6 gap-y-2 flex-wrap mono text-xs text-slate-400 opacity-80">
                 <?php foreach ($presence_data as $user): ?>
                     <?php if ($user['user_identity'] === 'MJ'): ?>
-                        <?php if ($browserClass === 'is-safari' && isset($last_message_writer) && $last_message_writer !== 'MJ'): ?>
-                            <div class="flex items-center gap-2.5">
-                                <span class="relative flex h-2 w-2"><span class="relative inline-flex rounded-full h-2 w-2 bg-slate-500"></span></span>
-                                <span>mj is here and he wants you to come back in 5 minutes he says please baby</span>
-                            </div>
-                        <?php else: ?>
-                            <div class="flex items-center gap-2.5">
-                                <?php if ($user['is_active']): ?>
-                                    <span class="relative flex h-2 w-2">
-                                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                                        <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                                    </span>
-                                    <span>MJ is here</span>
-                                    <?php if ($user['current_page'] === 'Active & Looking 👋'): ?>
-                                        <span class="animate-bounce inline-block">👋</span>
-                                    <?php else: ?>
-                                        <span class="opacity-60">(idle)</span>
-                                    <?php endif; ?>
+                        <div class="flex items-center gap-2.5">
+                            <?php if ($user['is_active']): ?>
+                                <span class="relative flex h-2 w-2">
+                                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                    <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                </span>
+                                <span>MJ is here</span>
+                                <?php if ($user['current_page'] === 'Active & Looking 👋'): ?>
+                                    <span class="animate-bounce inline-block">👋</span>
                                 <?php else: ?>
-                                    <span class="relative flex h-2 w-2"><span class="relative inline-flex rounded-full h-2 w-2 bg-slate-500"></span></span>
-                                    <span>MJ was last seen <?= time_ago($user['last_seen']) ?></span>
+                                    <span class="opacity-60">(idle)</span>
                                 <?php endif; ?>
-                            </div>
-                        <?php endif; ?>
+                            <?php else: ?>
+                                <span class="relative flex h-2 w-2"><span class="relative inline-flex rounded-full h-2 w-2 bg-slate-500"></span></span>
+                                <span>MJ was last seen <?= time_ago($user['last_seen']) ?></span>
+                            <?php endif; ?>
+                        </div>
                     <?php elseif ($user['user_identity'] === 'Kaye'): ?>
                         <div class="flex items-center gap-2.5">
                             <?php if ($user['is_active']): ?>
