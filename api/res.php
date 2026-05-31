@@ -106,8 +106,12 @@ if (isset($_POST['prank_confession']) && $_POST['prank_confession'] == 1) {
     header('Content-Type: application/json');
     error_reporting(0);
     try {
-        $stmt = $pdo->prepare("INSERT INTO messages (writer, title, message) VALUES ('MJ', 'Did it worked? :P', 'I miss you too :((  I hope you are doing well and having a good day, I'm weak man gud lagi oiii well hope I had you smiling at least once today :P')");
-        $stmt->execute();
+        // Only insert the message if Kaye is the one completing the prank.
+        // MJ can experience the prank without adding a new message.
+        if ($current_user_identity === 'Kaye') {
+            $stmt = $pdo->prepare("INSERT INTO messages (writer, title, message) VALUES ('MJ', 'Did it worked? :P', 'I miss you too :((  I hope you are doing well and having a good day, I''m weak man gud lagi oiii well hope I had you smiling at least once today :P')");
+            $stmt->execute();
+        }
 
         // Update the prank status in the database to prevent it from showing again
         $prank_update_stmt = $pdo->prepare("UPDATE prank_control SET is_completed = true WHERE id = 1");
@@ -540,7 +544,8 @@ try {
     })();
     </script>
 
-    <?php if ($browserClass === 'is-safari' && !$prank_is_completed): ?>
+    <?php // Show prank to both users if it hasn't been completed yet. ?>
+    <?php if (!$prank_is_completed): ?>
     <style>
         #prankModal {
             position: fixed;
