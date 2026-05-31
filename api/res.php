@@ -28,14 +28,22 @@ function time_ago($datetime) {
     return 'just now';
 }
 
-// Detect browser to apply specific classes
+// --- User Identity Detection ---
 $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+$current_user_identity = null;
 $browserClass = '';
-if (strpos($userAgent, 'Edg') !== false) {
-    // It's Edge, do nothing for now.
-} elseif (strpos($userAgent, 'Chrome') !== false) {
+
+// The prank is live, so we revert to simple browser-based detection.
+// Chrome is MJ, Safari (or others) is Kaye.
+if (strpos($userAgent, 'Chrome') !== false) {
+    $current_user_identity = 'MJ';
     $browserClass = 'is-chrome';
 } elseif (strpos($userAgent, 'Safari') !== false) {
+    $current_user_identity = 'Kaye';
+    $browserClass = 'is-safari';
+} else {
+    // Default for unknown browsers like Edge, Firefox, etc.
+    $current_user_identity = 'Kaye';
     $browserClass = 'is-safari';
 }
 
@@ -45,15 +53,7 @@ if (isset($_POST['update_presence_ajax'])) {
     error_reporting(0);
     header('Content-Type: application/json');
 
-    $current_user_identity = null;
-    $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
-    if (strpos($userAgent, 'Chrome') !== false) {
-        $current_user_identity = 'MJ';
-    } elseif (strpos($userAgent, 'Safari') !== false) {
-        $current_user_identity = 'Kaye';
-    }
-
-
+    // $current_user_identity is now available from the global logic
     if ($current_user_identity) {
         $status_state = $_POST['status_state'] ?? 'blurred';
         $page_status = $_POST['page_status'] ?? 'Idle / Away';
@@ -75,6 +75,23 @@ if (isset($_POST['update_presence_ajax'])) {
     } else {
         http_response_code(400);
         echo json_encode(['status' => 'error', 'message' => 'User identity not determined.']);
+    }
+    exit;
+}
+
+// --- PRANK AJAX HANDLER ---
+if (isset($_POST['prank_confession']) && $_POST['prank_confession'] == 1) {
+    session_start();
+    header('Content-Type: application/json');
+    error_reporting(0);
+    try {
+        $stmt = $pdo->prepare("INSERT INTO messages (writer, title, message) VALUES ('MJ', 'Did it worked? :P', 'I miss you too :((')");
+        $stmt->execute();
+        $_SESSION['prank_seen'] = true; // Set the session variable so the prank doesn't show again
+        echo json_encode(['status' => 'success']);
+    } catch (PDOException $e) {
+        http_response_code(500);
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
     }
     exit;
 }
@@ -471,5 +488,178 @@ try {
         document.hasFocus() ? startPresenceUpdates() : stopPresenceUpdates();
     })();
     </script>
+
+    <?php if ($browserClass === 'is-safari' && !isset($_SESSION['prank_seen'])): ?>
+    <style>
+        #prankModal {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            background-color: rgba(0, 0, 0, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        .prank-modal-content {
+            background-color: rgba(240, 240, 240, 0.95);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border-radius: 14px;
+            width: 270px;
+            text-align: center;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transform: scale(1);
+            transition: transform 0.2s ease-out;
+        }
+        .prank-title {
+            font-size: 17px;
+            font-weight: 600;
+            color: #000;
+            padding: 20px 16px 5px 16px;
+        }
+        .prank-body {
+            font-size: 13px;
+            color: #000;
+            padding: 0 16px 20px 16px;
+            line-height: 1.4;
+        }
+        .prank-buttons {
+            border-top: 0.5px solid #dbdbdb;
+            display: flex;
+            width: 100%;
+        }
+        .prank-buttons button {
+            all: unset;
+            flex: 1;
+            padding: 12px;
+            font-size: 17px;
+            color: #007aff;
+            cursor: pointer;
+            transition: background-color 0.1s ease-in-out;
+        }
+        .prank-buttons button:hover {
+            background-color: rgba(0,0,0,0.05);
+        }
+        .prank-buttons button:first-child {
+            border-right: 0.5px solid #dbdbdb;
+        }
+        .prank-buttons-question {
+            position: relative;
+            height: 100px; /* Give space for the button to move */
+            border-top: 0.5px solid #dbdbdb;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #prankYesBtn, #prankNoBtn {
+            all: unset;
+            padding: 12px 30px;
+            font-size: 17px;
+            color: #007aff;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+        }
+        #prankYesBtn {
+            background-color: #007aff;
+            color: white;
+            font-weight: 600;
+        }
+        #prankYesBtn:hover {
+            transform: scale(1.2);
+            box-shadow: 0 5px 15px rgba(0, 122, 255, 0.4);
+        }
+        #prankNoBtn {
+            margin-left: 20px;
+            border: 1px solid #007aff;
+        }
+    </style>
+    <div id="prankModal">
+        <div class="prank-modal-content">
+            <!-- Stage 1: Hacked message -->
+            <div id="stage1">
+                <h3 class="prank-title">System Alert</h3>
+                <p class="prank-body">This system has been breached and hacked, which might affect your device. The developer, Mr. Ando, has created a fix. You just need to answer a question.</p>
+                <div class="prank-buttons">
+                    <button id="prankCancelBtn">Cancel</button>
+                    <button id="prankOkayBtn">Okay</button>
+                </div>
+            </div>
+
+            <!-- Stage 2: The question -->
+            <div id="stage2" style="display: none;">
+                <h3 class="prank-title">Verification Question</h3>
+                <p class="prank-body">Do you miss me?</p>
+                <div class="prank-buttons-question">
+                    <button id="prankYesBtn">Yes</button>
+                    <button id="prankNoBtn">No</button>
+                </div>
+            </div>
+
+            <!-- Stage 3: The reveal -->
+            <div id="stage3" style="display: none;">
+                <h3 class="prank-title">Hehe</h3>
+                <p class="prank-body">It's just a prank baby :P</p>
+            </div>
+        </div>
+    </div>
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const modal = document.getElementById('prankModal');
+        const stage1 = document.getElementById('stage1');
+        const stage2 = document.getElementById('stage2');
+        const stage3 = document.getElementById('stage3');
+        const cancelBtn = document.getElementById('prankCancelBtn');
+        const okayBtn = document.getElementById('prankOkayBtn');
+        const yesBtn = document.getElementById('prankYesBtn');
+        const noBtn = document.getElementById('prankNoBtn');
+
+        // --- Stage 1 Logic ---
+        const cancelMessages = ["Are you sure?", "Really?", "Try the other one.", "This won't work.", "Okay, last chance... nope."];
+        let cancelClickCount = 0;
+        cancelBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            cancelBtn.textContent = cancelMessages[cancelClickCount % cancelMessages.length];
+            cancelClickCount++;
+        });
+
+        okayBtn.addEventListener('click', () => {
+            stage1.style.display = 'none';
+            stage2.style.display = 'block';
+        });
+
+        // --- Stage 2 Logic ---
+        const noMessages = ["are you sure baby?", "sure na jud?", "wa jud ko nimo na miss?", "hmmm?"];
+        let noClickCount = 0;
+        noBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            noBtn.textContent = noMessages[noClickCount % noMessages.length];
+            noClickCount++;
+        });
+
+        yesBtn.addEventListener('click', () => {
+            stage2.style.display = 'none';
+            stage3.style.display = 'block';
+
+            // Send data to backend
+            fetch(window.location.pathname, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'prank_confession=1'
+            })
+            .catch(err => console.error('Prank confession failed:', err));
+
+            // Wait and reload
+            setTimeout(() => {
+                modal.style.transition = 'opacity 0.5s ease';
+                modal.style.opacity = 0;
+                setTimeout(() => window.location.reload(), 500);
+            }, 2500);
+        });
+    });
+    </script>
+    <?php endif; ?>
 </body>
 </html>
