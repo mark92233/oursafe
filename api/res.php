@@ -85,7 +85,7 @@ if (isset($_POST['prank_confession']) && $_POST['prank_confession'] == 1) {
     header('Content-Type: application/json');
     error_reporting(0);
     try {
-        $stmt = $pdo->prepare("INSERT INTO messages (writer, title, message) VALUES ('MJ', 'Did it worked? :P', 'I miss you too :((')");
+        $stmt = $pdo->prepare("INSERT INTO messages (writer, title, message) VALUES ('MJ', 'Did it worked? :P', 'I miss you too :((  I hope you are doing well and having a good day, I'm weak man gud lagi oiii well hope I had you smiling at least once today :P')");
         $stmt->execute();
         $_SESSION['prank_seen'] = true; // Set the session variable so the prank doesn't show again
         echo json_encode(['status' => 'success']);
