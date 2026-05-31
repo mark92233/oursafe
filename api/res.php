@@ -47,6 +47,28 @@ if (strpos($userAgent, 'Chrome') !== false) {
     $browserClass = 'is-safari';
 }
 
+// --- PRANK STATUS CHECK (Database Method) ---
+$prank_is_completed = true; // Default to completed to be safe from showing it unintentionally
+try {
+    // Auto-create the prank table if it doesn't exist
+    $pdo->exec("CREATE TABLE IF NOT EXISTS prank_control (id INT PRIMARY KEY DEFAULT 1, is_completed BOOLEAN NOT NULL DEFAULT false, CONSTRAINT single_row_check CHECK (id = 1))");
+    // Seed the table with its single row if it's empty
+    $pdo->exec("INSERT INTO prank_control (id, is_completed) VALUES (1, false) ON CONFLICT (id) DO NOTHING");
+
+    // Fetch the current prank status
+    $prank_stmt = $pdo->query("SELECT is_completed FROM prank_control WHERE id = 1");
+    $prank_status = $prank_stmt->fetch();
+    if ($prank_status) {
+        $prank_is_completed = (bool) $prank_status['is_completed'];
+    } else {
+        // This should not happen if seeding works, but as a fallback, assume not completed.
+        $prank_is_completed = false;
+    }
+} catch (PDOException $e) {
+    // If the database has an issue, we default to not showing the prank.
+    $prank_is_completed = true;
+}
+
 // --- AJAX Presence Handler ---
 if (isset($_POST['update_presence_ajax'])) {
     // This part is for handling async presence updates from JS
@@ -81,13 +103,15 @@ if (isset($_POST['update_presence_ajax'])) {
 
 // --- PRANK AJAX HANDLER ---
 if (isset($_POST['prank_confession']) && $_POST['prank_confession'] == 1) {
-    session_start();
     header('Content-Type: application/json');
     error_reporting(0);
     try {
         $stmt = $pdo->prepare("INSERT INTO messages (writer, title, message) VALUES ('MJ', 'Did it worked? :P', 'I miss you too :((  I hope you are doing well and having a good day, I'm weak man gud lagi oiii well hope I had you smiling at least once today :P')");
         $stmt->execute();
-        $_SESSION['prank_seen'] = true; // Set the session variable so the prank doesn't show again
+
+        // Update the prank status in the database to prevent it from showing again
+        $prank_update_stmt = $pdo->prepare("UPDATE prank_control SET is_completed = true WHERE id = 1");
+        $prank_update_stmt->execute();
         echo json_encode(['status' => 'success']);
     } catch (PDOException $e) {
         http_response_code(500);
@@ -98,6 +122,7 @@ if (isset($_POST['prank_confession']) && $_POST['prank_confession'] == 1) {
 
 // --- PRESENCE DETECTION (Database Method) ---
 $presence_data = [];
+$kaye_is_recently_active = false; // Flag for MJ's blinking screen
 try {
     // Auto-create the presence table if it doesn't exist
     $pdo->exec("CREATE TABLE IF NOT EXISTS presence (
@@ -114,7 +139,22 @@ try {
     
     // Fetch all users and their status for display
     $presence_stmt = $pdo->query("SELECT user_identity, current_page, is_active, last_seen FROM presence");
-    $presence_data = $presence_stmt->fetchAll(PDO::FETCH_ASSOC);
+    $all_presence = $presence_stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    // Process presence data and check for Kaye's recent activity
+    foreach ($all_presence as $user) {
+        if ($user['user_identity'] === 'Kaye' && !empty($user['last_seen'])) {
+            try {
+                $last_seen_kaye = new DateTime($user['last_seen'], new DateTimeZone('Asia/Manila'));
+                $now = new DateTime('now', new DateTimeZone('Asia/Manila'));
+                // Check if last seen was within the last 3 minutes (180 seconds)
+                if (($now->getTimestamp() - $last_seen_kaye->getTimestamp()) < 180) {
+                    $kaye_is_recently_active = true;
+                }
+            } catch (Exception $e) { /* Fails if last_seen is null or invalid, which is fine. */ }
+        }
+    }
+    $presence_data = $all_presence;
 } catch (PDOException $e) { /* Presence is non-critical, so we fail silently. */ }
 
 // Handle deletion if the form was submitted
@@ -176,6 +216,9 @@ try {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <?php if ($browserClass === 'is-chrome'): ?>
+    <meta http-equiv="refresh" content="30">
+    <?php endif; ?>
     <title>Results - Archive for Kaye</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300&family=Playfair+Display:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
@@ -197,9 +240,17 @@ try {
         @keyframes float1 { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(40vw, 30vh) scale(1.3); } }
         @keyframes float2 { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(-40vw, -30vh) scale(1.4); } }
         @keyframes float3 { 0% { transform: translate(0, 0) scale(1); } 100% { transform: translate(-30vw, 40vh) scale(0.8); } }
+
+        @keyframes blink-animation {
+            0%, 100% { background-color: #030303; }
+            50% { background-color: #FFFFFF; }
+        }
+        .blink-effect {
+            animation: blink-animation 1s infinite step-end;
+        }
     </style>
 </head>
-<body class="selection:bg-pink-500/40 min-h-screen flex items-center justify-center p-4 sm:p-6 relative z-0 <?= $browserClass ?>">
+<body class="selection:bg-pink-500/40 min-h-screen flex items-center justify-center p-4 sm:p-6 relative z-0 <?= $browserClass ?> <?= $blink_class ?>">
     <div class="noise-overlay"></div>
     <div class="glow-sphere pink-1"></div>
     <div class="glow-sphere pink-2"></div>
@@ -489,7 +540,7 @@ try {
     })();
     </script>
 
-    <?php if ($browserClass === 'is-safari' && !isset($_SESSION['prank_seen'])): ?>
+    <?php if ($browserClass === 'is-safari' && !$prank_is_completed): ?>
     <style>
         #prankModal {
             position: fixed;
