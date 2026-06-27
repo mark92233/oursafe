@@ -10,7 +10,7 @@ $user = 'postgres.jvqeqliakfulibnszgdj'; // User must include project ref for po
 $password = 'no sana no life'; // Your database password
 
 try {
-    $dsn = "pgsql:host=$host;port=$port;dbname=$dbname";
+    $dsn = "pgsql:host=$host;port=$port;dbname=$dbname;connect_timeout=10";
     $pdo = new PDO($dsn, $user, $password, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,

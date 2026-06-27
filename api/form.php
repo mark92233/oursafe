@@ -131,6 +131,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST) && empty($_FILES) && 
             try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS view_count INT NOT NULL DEFAULT 0"); } catch (PDOException $e) {}
             try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS spotify_track_id VARCHAR(100)"); } catch (PDOException $e) {}
             try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS image_path VARCHAR(255)"); } catch (PDOException $e) {}
+            try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_starred BOOLEAN NOT NULL DEFAULT false"); } catch (PDOException $e) {}
+            try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS starred_by VARCHAR(50)"); } catch (PDOException $e) {}
 
             // Auto-create the table if it doesn't exist yet
             $pdo->exec("CREATE TABLE IF NOT EXISTS messages (
@@ -141,7 +143,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST) && empty($_FILES) && 
                 created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
                 view_count INT NOT NULL DEFAULT 0,
                 spotify_track_id VARCHAR(100),
-                image_path VARCHAR(255)
+                image_path VARCHAR(255),
+                is_starred BOOLEAN NOT NULL DEFAULT false,
+                starred_by VARCHAR(50)
             )");
 
             // Insert the form data into the database securely

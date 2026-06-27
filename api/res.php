@@ -161,6 +161,12 @@ try {
     $presence_data = $all_presence;
 } catch (PDOException $e) { /* Presence is non-critical, so we fail silently. */ }
 
+// --- Blink effect logic for MJ ---
+$blink_class = '';
+if ($current_user_identity === 'MJ' && $kaye_is_recently_active) {
+    $blink_class = 'blink-effect';
+}
+
 // Handle deletion if the form was submitted
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_id'])) {
     try {

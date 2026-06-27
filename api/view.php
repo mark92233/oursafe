@@ -1,6 +1,42 @@
 <?php
 require_once __DIR__ . '/db_related/db_connect.php';
 
+// --- AJAX: Handle starring/unstarring a note ---
+if (isset($_POST['toggle_star']) && isset($_POST['id'])) {
+    header('Content-Type: application/json');
+    error_reporting(0); // Suppress warnings for clean JSON output
+
+    // --- User Identity Detection for AJAX ---
+    $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
+    $current_user_identity = null;
+    if (strpos($userAgent, 'Chrome') !== false) {
+        $current_user_identity = 'MJ';
+    } else { // Default for Safari, Edge, Firefox, etc.
+        $current_user_identity = 'Kaye';
+    }
+
+    try {
+        $id = $_POST['id'];
+        // Make sure we're dealing with a boolean
+        $status = filter_var($_POST['is_starred'], FILTER_VALIDATE_BOOLEAN);
+
+        if ($status) {
+            // Starring: set status and who starred it
+            $stmt = $pdo->prepare("UPDATE messages SET is_starred = :status, starred_by = :user_identity WHERE id = :id");
+            $stmt->execute(['status' => $status, 'user_identity' => $current_user_identity, 'id' => $id]);
+        } else {
+            // Unstarring: clear status and who starred it
+            $stmt = $pdo->prepare("UPDATE messages SET is_starred = false, starred_by = NULL WHERE id = :id");
+            $stmt->execute(['id' => $id]);
+        }
+        echo json_encode(['status' => 'success', 'is_starred' => $status]);
+    } catch (PDOException $e) {
+        http_response_code(500);
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    }
+    exit;
+}
+
 // Detect browser to apply specific classes
 $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
 $browserClass = '';
@@ -16,19 +52,30 @@ $msg = null;
 $error = null;
 $return_page = isset($_GET['page']) && is_numeric($_GET['page']) ? (int)$_GET['page'] : 1;
 
+// Determine where to go back to
+$from = $_GET['from'] ?? 'res';
+$return_path = 'res.php';
+$return_text = 'Back to Archive';
+if ($from === 'favorites') {
+    $return_path = 'favorites.php';
+    $return_text = 'Back to Favorites';
+}
+
 if (isset($_GET['id']) && is_numeric($_GET['id'])) {
     try {
         // Auto-patch database schema if columns are missing
         try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS view_count INT NOT NULL DEFAULT 0"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS spotify_track_id VARCHAR(100)"); } catch (PDOException $e) {}
         try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS image_path VARCHAR(255)"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS is_starred BOOLEAN NOT NULL DEFAULT false"); } catch (PDOException $e) {}
+        try { $pdo->exec("ALTER TABLE messages ADD COLUMN IF NOT EXISTS starred_by VARCHAR(50)"); } catch (PDOException $e) {}
 
         // Increment view count
         $updateStmt = $pdo->prepare("UPDATE messages SET view_count = view_count + 1 WHERE id = :id");
         $updateStmt->execute(['id' => $_GET['id']]);
 
         // Fetch the specific message securely using a prepared statement
-        $stmt = $pdo->prepare("SELECT title, message, writer, created_at, view_count, spotify_track_id, image_path FROM messages WHERE id = :id");
+        $stmt = $pdo->prepare("SELECT id, title, message, writer, created_at, view_count, spotify_track_id, image_path, is_starred, starred_by FROM messages WHERE id = :id");
         $stmt->execute(['id' => $_GET['id']]);
         $msg = $stmt->fetch();
         
@@ -80,7 +127,7 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
 
         <?php if ($error): ?>
             <div class='text-red-400 mb-6 p-4 glass rounded-xl border-red-500/30 font-sans text-sm'><?= htmlspecialchars($error) ?></div>
-            <a href="res.php?page=<?= $return_page ?>" class="inline-block glass hover:bg-white/5 text-white py-3 px-6 rounded-xl mono text-xs uppercase tracking-widest transition-all">← Back to Archive</a>
+            <a href="<?= $return_path ?>?page=<?= $return_page ?>" class="inline-block glass hover:bg-white/5 text-white py-3 px-6 rounded-xl mono text-xs uppercase tracking-widest transition-all">← <?= $return_text ?></a>
         <?php elseif ($msg): ?>
             <div class="mb-8">
                 <span class="mono text-[10px] uppercase tracking-[0.2em] text-pink-400 font-bold">
@@ -119,8 +166,17 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
             <?php endif; ?>
 
             <div class="flex justify-between items-center">
-                <a href="res.php?page=<?= $return_page ?>" class="inline-block glass hover:bg-white/5 text-white py-3 px-6 rounded-xl mono text-xs uppercase tracking-widest transition-all">← Back to Archive</a>
-                
+                <a href="<?= $return_path ?>?page=<?= $return_page ?>" class="inline-block glass hover:bg-white/5 text-white py-3 px-6 rounded-xl mono text-xs uppercase tracking-widest transition-all">← <?= $return_text ?></a>
+                <button id="starBtn" 
+                        class="group glass hover:bg-yellow-500/20 text-white py-3 px-5 rounded-xl mono text-xs uppercase tracking-widest transition-all cursor-pointer border <?= $msg['is_starred'] ? 'border-yellow-400/50 bg-yellow-500/10 text-yellow-300' : 'border-transparent' ?>"
+                        onclick="toggleStar(<?= $msg['id'] ?>, <?= $msg['is_starred'] ? 'true' : 'false' ?>)">
+                    <div class="flex items-center gap-2">
+                        <svg id="starIcon" class="w-4 h-4 transition-all <?= $msg['is_starred'] ? 'text-yellow-400' : 'text-white/50 group-hover:text-yellow-300' ?>" fill="<?= $msg['is_starred'] ? 'currentColor' : 'none' ?>" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.196-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.783-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"></path>
+                        </svg>
+                        <span id="starText"><?= $msg['is_starred'] ? 'Starred' : 'Star' ?></span>
+                    </div>
+                </button>
             </div>
         <?php endif; ?>
     </main>
@@ -161,6 +217,47 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
                 imageViewerModal.classList.add('hidden');
                 imageViewerModal.classList.remove('flex');
             }, 300);
+        }
+    </script>
+    <?php endif; ?>
+
+    <?php if ($msg): ?>
+    <script>
+        function toggleStar(id, isCurrentlyStarred) {
+            const starBtn = document.getElementById('starBtn');
+            const starIcon = document.getElementById('starIcon');
+            const starText = document.getElementById('starText');
+            const newStarredState = !isCurrentlyStarred;
+ 
+            // Optimistically update UI
+            starBtn.disabled = true;
+            starText.textContent = newStarredState ? 'Starred' : 'Star';
+            starBtn.classList.toggle('border-yellow-400/50', newStarredState);
+            starBtn.classList.toggle('bg-yellow-500/10', newStarredState);
+            starBtn.classList.toggle('text-yellow-300', newStarredState);
+            starBtn.classList.toggle('border-transparent', !newStarredState);
+            starIcon.classList.toggle('text-yellow-400', newStarredState);
+            starIcon.classList.toggle('text-white/50', !newStarredState);
+            starIcon.setAttribute('fill', newStarredState ? 'currentColor' : 'none');
+ 
+            fetch(window.location.pathname, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: `toggle_star=1&id=${id}&is_starred=${newStarredState}`
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Update the button's onclick for the next toggle
+                    starBtn.setAttribute('onclick', `toggleStar(${id}, ${newStarredState})`);
+                } else {
+                    // Revert UI on failure
+                    console.error("Failed to update star status:", data.message);
+                    toggleStar(id, newStarredState); // This will revert the state
+                }
+            }).finally(() => {
+                starBtn.disabled = false;
+            });
         }
     </script>
     <?php endif; ?>
