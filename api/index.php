@@ -1,15 +1,65 @@
 <?php
 require_once __DIR__ . '/db_related/db_connect.php';
 
+// --- AJAX HANDLER FOR MEDS ---
+if (isset($_POST['meds_taken']) && $_POST['meds_taken'] === 'yes') {
+    header('Content-Type: application/json');
+    error_reporting(0);
+    try {
+        // Create table if not exists, with a single-row constraint
+        $pdo->exec("CREATE TABLE IF NOT EXISTS meds (
+            id INT PRIMARY KEY DEFAULT 1,
+            status BOOLEAN NOT NULL DEFAULT false,
+            CONSTRAINT single_row_check CHECK (id = 1)
+        )");
+        // Seed the table with its one and only row if it's empty
+        $pdo->exec("INSERT INTO meds (id, status) VALUES (1, false) ON CONFLICT (id) DO NOTHING");
+
+        // Update status to true
+        $stmt = $pdo->prepare("UPDATE meds SET status = true WHERE id = 1");
+        $stmt->execute();
+
+        echo json_encode(['status' => 'success', 'message' => 'Status updated.']);
+    } catch (PDOException $e) {
+        http_response_code(500);
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    }
+    exit;
+}
+
 // Detect browser to apply specific classes
 $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
 $browserClass = '';
-if (strpos($userAgent, 'Edg') !== false) {
-    // It's Edge, do nothing for now.
-} elseif (strpos($userAgent, 'Chrome') !== false) {
+$current_user_identity = null;
+
+if (strpos($userAgent, 'Chrome') !== false) {
+    $current_user_identity = 'MJ';
     $browserClass = 'is-chrome';
 } elseif (strpos($userAgent, 'Safari') !== false) {
+    $current_user_identity = 'Kaye';
     $browserClass = 'is-safari';
+} else {
+    // Default for unknown browsers like Edge, Firefox, etc.
+    $current_user_identity = 'Kaye';
+    $browserClass = 'is-safari'; // Also apply safari class for consistent styling if needed
+}
+
+// --- MEDS MODAL LOGIC ---
+$show_meds_modal = false;
+if ($current_user_identity === 'Kaye') {
+    try {
+        // Ensure table exists before querying. This is self-healing.
+        $pdo->exec("CREATE TABLE IF NOT EXISTS meds (id INT PRIMARY KEY DEFAULT 1, status BOOLEAN NOT NULL DEFAULT false, CONSTRAINT single_row_check CHECK (id = 1))");
+        $pdo->exec("INSERT INTO meds (id, status) VALUES (1, false) ON CONFLICT (id) DO NOTHING");
+
+        $stmt = $pdo->query("SELECT status FROM meds WHERE id = 1");
+        $meds_status = $stmt->fetch();
+        if ($meds_status && $meds_status['status'] === false) {
+            $show_meds_modal = true;
+        }
+    } catch (PDOException $e) {
+        // Fail silently, don't show modal if DB error occurs.
+    }
 }
 ?>
 <!DOCTYPE html>
@@ -115,6 +165,18 @@ if (strpos($userAgent, 'Edg') !== false) {
         </section>
     </main>
 
+    <!-- Meds Reminder Modal -->
+    <div id="medsModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm opacity-0 transition-opacity duration-300">
+        <div class="glass p-6 sm:p-8 rounded-2xl max-w-sm w-full mx-4 transform scale-95 transition-transform duration-300 border-pink-500/20">
+            <h3 id="medsModalTitle" class="text-xl sm:text-2xl text-white mb-4 font-light italic tracking-tighter">A Gentle Reminder</h3>
+            <p id="medsModalBody" class="text-slate-400 font-sans text-sm mb-8 leading-relaxed">Have you taken your meds today, meam?</p>
+            <div class="flex justify-end space-x-3 font-sans text-sm">
+                <button id="medsNoBtn" type="button" class="px-5 py-2.5 text-slate-400 hover:text-white transition-colors cursor-pointer">No</button>
+                <button id="medsYesBtn" type="button" class="bg-pink-500/10 text-pink-400 border border-pink-500/30 hover:bg-pink-500/20 px-5 py-2.5 rounded-xl transition-all cursor-pointer">Yes</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const observer = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
@@ -122,6 +184,81 @@ if (strpos($userAgent, 'Edg') !== false) {
             });
         }, { threshold: 0.1 });
         document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+        <?php if ($show_meds_modal): ?>
+        document.addEventListener('DOMContentLoaded', () => {
+            const modal = document.getElementById('medsModal');
+            const modalContent = modal.querySelector('div.glass');
+            const modalTitle = document.getElementById('medsModalTitle');
+            const modalBody = document.getElementById('medsModalBody');
+            const yesBtn = document.getElementById('medsYesBtn');
+            const noBtn = document.getElementById('medsNoBtn');
+
+            function openModal() {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                void modal.offsetWidth;
+                modal.classList.remove('opacity-0');
+                modalContent.classList.remove('scale-95');
+            }
+
+            function closeModal() {
+                modal.classList.add('opacity-0');
+                modalContent.classList.add('scale-95');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                }, 300);
+            }
+
+            // Show modal on page load after a short delay
+            setTimeout(openModal, 1500);
+
+            // "No" button logic
+            const noMessages = [
+                "Please take them when you can. I care about you.",
+                "Don't forget, okay? Your health is important.",
+                "I'll ask again later. Please remember them.",
+                "Okay, but promise me you'll take them soon."
+            ];
+            let noClickCount = 0;
+            noBtn.addEventListener('click', () => {
+                modalBody.textContent = noMessages[noClickCount % noMessages.length];
+                noClickCount++;
+            });
+
+            // "Yes" button logic
+            yesBtn.addEventListener('click', () => {
+                yesBtn.disabled = true;
+                yesBtn.textContent = 'Thank you! 😡';
+
+                fetch(window.location.pathname, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: 'meds_taken=yes'
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        modalTitle.textContent = 'Maayo';
+                        modalBody.textContent = 'Thank you for taking care of yourself. I appreciate it. 😡';
+                        noBtn.style.display = 'none';
+                        yesBtn.textContent = 'Close';
+                        yesBtn.onclick = closeModal;
+                        yesBtn.disabled = false;
+                    } else {
+                        modalBody.textContent = 'Something went wrong on the server. I will fix it.';
+                    }
+                })
+                .catch(err => {
+                    console.error('Meds update error:', err);
+                    modalBody.textContent = 'A network error occurred. Please try again.';
+                    yesBtn.disabled = false;
+                    yesBtn.textContent = 'Yes';
+                });
+            });
+        });
+        <?php endif; ?>
     </script>
 </body>
 </html>

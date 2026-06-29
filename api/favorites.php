@@ -127,7 +127,7 @@ try {
             <div class="mb-6 flex justify-end">
                 <form method="GET" action="" class="flex items-center space-x-3">
                     <label for="writer-filter" class="mono text-[10px] uppercase tracking-[0.2em] text-pink-400 font-bold">Filter:</label>
-                    <select id="writer-filter" name="writer" onchange="this.form.submit()" class="bg-black/40 border border-white/10 rounded-xl p-2 px-4 text-white text-sm focus:outline-none focus:border-pink-500 transition-colors appearance-none cursor-pointer">
+                    <select id="writer-filter" name="writer" onchange="this.form.submit()" class="bg-black/40 border border-white/10 rounded-xl p-2 px-4 text-white text-sm focus:outline-none focus:border-pink-500 transition-colors appearance-none cursor-pointer">s
                         <option value="" class="bg-black text-white" <?= empty($filter_writer) ? 'selected' : '' ?>>All Favorites</option>
                         <option value="MJ" class="bg-black text-white" <?= $filter_writer === 'MJ' ? 'selected' : '' ?>>MJ's</option>
                         <option value="Kaye" class="bg-black text-white" <?= $filter_writer === 'Kaye' ? 'selected' : '' ?>>Kaye's</option>
@@ -143,7 +143,7 @@ try {
                                     <?= htmlspecialchars($msg['writer'] ?? 'MJ') ?> • <?= htmlspecialchars(date('M d, Y g:i a', strtotime($msg['created_at']))) ?> • <?= htmlspecialchars($msg['view_count'] ?? 0) ?> views
                                 </span>
                                 <?php if (!empty($msg['starred_by'])): ?>
-                                    <span class="text-xs text-yellow-400/90 mono block uppercase tracking-widest mt-2">★ Starred by <?= htmlspecialchars($msg['starred_by']) ?></span>
+                                    <span class="text-xs text-yellow-400/90 mono block uppercase tracking-widest mt-2">★ Favorite ni <?= htmlspecialchars($msg['starred_by']) ?></span>
                                 <?php endif; ?>
                             </div>
                             <div class="flex items-start justify-between gap-3 mb-6">
